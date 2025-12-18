@@ -1,0 +1,74 @@
+# Teacher Regional Configuration
+# Fine-tunes a model on SW Europe (Spain, Portugal, France, Italy) subset
+
+model:
+  name: "vit_base_patch16_224"
+  pretrained: true
+  # Can also start from teacher_global checkpoint:
+  # init_from: "./checkpoints/teacher_global/best_model.pt"
+
+training:
+  learning_rate: 5.0e-6  # Lower LR for regional (smaller dataset)
+  batch_size: 32
+  epochs: 20
+  warmup_epochs: 2
+  optimizer: "adamw"
+  weight_decay: 0.02
+  gradient_clip: 1.0
+  label_smoothing: 0.1
+
+data:
+  # Regional dataset (filtered by region=EU_SW)
+  train_jsonl: "./data/dataset_eu_sw_train.jsonl"
+  val_jsonl: "./data/dataset_val.jsonl"  # Use full val for regional evaluation
+  region_filter: "EU_SW"
+  image_size: 224
+  num_workers: 4
+
+augmentation:
+  train:
+    resize: 256
+    crop: 224
+    horizontal_flip: 0.5
+    rotation: 20
+    color_jitter:
+      brightness: 0.3
+      contrast: 0.3
+      saturation: 0.3
+      hue: 0.1
+    normalize:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+
+  val:
+    resize: 256
+    center_crop: 224
+    normalize:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+
+regularization:
+  dropout: 0.3
+  mixup_alpha: 0.5
+  cutmix_alpha: 0.5
+  mixup_prob: 0.3
+
+callbacks:
+  early_stopping: true
+  early_stopping_patience: 5
+  early_stopping_metric: "val_loss"
+  save_checkpoint_every: 1
+  save_best: true
+  checkpoint_metric: "val_top1_acc"
+
+logging:
+  log_every_n_steps: 50
+  tensorboard: true
+
+device:
+  type: "cuda"
+  mixed_precision: true
+
+output:
+  checkpoint_dir: "./checkpoints/teacher_regional"
+  results_dir: "./results/teacher_regional_v1"

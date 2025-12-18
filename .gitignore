@@ -1,0 +1,52 @@
+# Data (too large for git)
+data/
+checkpoints/
+results/
+dist/
+*.npz
+*.pt
+*.pth
+*.h5
+*.onnx
+*.bin
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+.venv/
+*.egg
+
+# Logs
+logs/
+*.log
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+.env.local
+secrets/
+
+# Temporary
+*.tmp
+test_tfjs.js
+tfjs_predictions.json
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Coverage
+.coverage
+htmlcov/

@@ -3,12 +3,33 @@ data/
 checkpoints/
 results/
 dist/
+models/saved_models/
+models/checkpoints/
 *.npz
 *.pt
 *.pth
 *.h5
 *.onnx
 *.bin
+*.safetensors
+*.msgpack
+
+# Large dataset files
+*.jsonl
+*.json.gz
+*.csv.gz
+*.parquet
+*.arrow
+*.feather
+
+# Model weights and caches
+*.weights
+*.pb
+*.tflite
+*.mlmodel
+*_cache/
+wandb/
+tensorboard_logs/
 
 # Python
 __pycache__/

@@ -1,0 +1,116 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   APLANTIDA ML TRAINING PLAN - COMPLETE                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+📚 DOCUMENTATION INDEX
+├─ READ THIS FIRST ────────────────────────────────────────────────────────
+│  └─ README.md (5 min)
+│     • Plan overview
+│     • Timeline estimates
+│     • Success criteria
+│
+├─ ARCHITECTURE & DESIGN ──────────────────────────────────────────────────
+│  ├─ ARQUITECTURA.md (5 min)
+│  │  └─ End-to-end system diagram
+│  │     Data flow: Mongo → CDN → Training → TF.js → PWA
+│  │
+│  ├─ DISTILLATION_DESIGN.md (10 min)
+│  │  └─ Student architecture & knowledge distillation
+│  │     Loss function, temperature scaling, ensemble logistics
+│  │
+│  └─ DATOS_PIPELINE.md (10 min)
+│     └─ Data extraction, validation, augmentations
+│        Mongo export, URL validation, stratified splits
+│
+├─ EXECUTION PLAN ─────────────────────────────────────────────────────────
+│  ├─ FASES_ENTRENAMIENTO.md (15 min) ⭐ MAIN REFERENCE
+│  │  └─ 7 phases with exact commands
+│  │     • Fase 0: Audit (baseline)
+│  │     • Fase 1: Teacher global
+│  │     • Fase 2: Teacher regional
+│  │     • Fase 3: Distillation prep
+│  │     • Fase 4: Student training
+│  │     • Fase 5: Calibration
+│  │     • Fase 6: Export to TF.js
+│  │     • Fase 7: Reproducibility
+│  │
+│  ├─ METRICAS_EVALUACION.md (8 min)
+│  │  └─ Metrics, calibration, confidence thresholds
+│  │
+│  └─ ESTRUCTURA_SCRIPTS.md (10 min)
+│     └─ Repo structure, requirements, CLI patterns
+│
+├─ DEPLOYMENT & PRODUCTION ────────────────────────────────────────────────
+│  ├─ EXPORT_TFJS_PWA.md (8 min)
+│  │  └─ Quantization, TF.js export, PWA integration
+│  │     Model caching, versioning, updates
+│  │
+│  └─ LICENCIAS_CHECKLIST.md (5 min) ⚖️ CRITICAL
+│     └─ Legal compliance, license verification
+│        Permissive licenses only for production
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 QUICK START (For developers)
+
+1. Read: README.md (overview)
+2. Read: ARQUITECTURA.md (understand system)
+3. Setup: ESTRUCTURA_SCRIPTS.md (repo + dependencies)
+4. Execute: FASES_ENTRENAMIENTO.md (step by step)
+5. Validate: LICENCIAS_CHECKLIST.md (legal)
+6. Deploy: EXPORT_TFJS_PWA.md (production)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 EXPECTED RESULTS
+
+Global Accuracy:
+  ✓ Top-1: >= 75%
+  ✓ Top-5: >= 90%
+
+Regional Performance:
+  ✓ Spain/SW Europe: +15% vs global
+  ✓ Other Europe: -3% vs global
+
+Calibration:
+  ✓ ECE: < 0.10
+
+Model Size:
+  ✓ TF.js deployment: <= 150MB (cuantizado)
+
+Inference Speed:
+  ✓ Browser (GPU): < 2 seconds
+  ✓ Browser (CPU): < 5 seconds
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏱️ ESTIMATED TIMELINE (NOT DEADLINES)
+
+Fase 0-1: Audit + teacher global ........... 2-3 days
+Fase 2:   Teacher regional ................ 1-2 days
+Fase 3-4: Student + distillation .......... 3-5 days
+Fase 5-6: Calibration + export ............ 2 days
+Fase 7:   Reproducibility ................ 1 day
+
+Total: 9-14 days on one GPU (RTX 3090+)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 KEY ASSUMPTIONS
+
+• Dataset: ~9,000 species, ~900k images from Mongo
+• Licenses: Can filter to permissive (CC0, CC-BY) for production
+• Teachers: ViT-Base (global) + regional GBIF fine-tune
+• Student: MobileNetV2 (browser-optimized)
+• Distillation: Temperature=3.0, alpha=0.7
+• Threshold: ~0.75 confidence for "conclusive"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❓ QUESTIONS?
+
+Each document has "Troubleshooting" sections.
+Common issues addressed in FASES_ENTRENAMIENTO.md end.
+
+Last updated: 2024-12-17
+Plan version: v1.0

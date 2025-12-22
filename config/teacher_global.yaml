@@ -2,60 +2,65 @@
 # Fine-tunes a ViT-Base model on the full dataset
 
 model:
-  name: "vit_base_patch16_224"
+  name: "vit_base_patch16_384"  # Changed from 224 to 384 for better detail
   pretrained: true
   # num_classes will be determined dynamically from dataset
 
 training:
-  learning_rate: 1.0e-5
-  batch_size: 16  # Reduced for 4GB VRAM (RTX 3050 Ti)
-  epochs: 15
+  learning_rate: 3.0e-5  # Increased from 1e-5 to reduce overfitting
+  batch_size: 4  # Reduced from 8 to fit 4GB VRAM (RTX 3050 Ti) with 384px images
+  epochs: 10  # Full training with fixed class mapping
   warmup_epochs: 2
   optimizer: "adamw"
-  weight_decay: 0.01
+  weight_decay: 0.05  # Increased from 0.01 for stronger regularization
   gradient_clip: 1.0
   label_smoothing: 0.1
 
 data:
-  train_jsonl: "./data/dataset_train.jsonl"
-  val_jsonl: "./data/dataset_val.jsonl"
-  image_size: 224
-  num_workers: 4
+  train_jsonl: "./data/dataset_train_stratified.jsonl"  # Full stratified dataset (93k images, 100% cached)
+  val_jsonl: "./data/dataset_val_stratified.jsonl"  # Full validation set (12k images, 100% cached)
+  image_size: 384  # Increased from 224 for better detail
+  num_workers: 6  # Reduced to avoid rate limiting
+  cache_size_gb: 220  # Increased to keep all images (you have 250GB free)
+  smart_crop: true  # Enable saliency-based smart cropping
+
 
 augmentation:
-  # Training augmentations
+  # Training augmentations (increased for better generalization)
   train:
-    resize: 256
-    crop: 224
+    resize: 448  # Resize to 448 then crop to 384 (allows for augmentation room)
+    crop: 384  # Changed from 224 to 384
     horizontal_flip: 0.5
-    rotation: 15
+    vertical_flip: 0.2  # Some plants look similar upside down
+    rotation: 20  # Increased from 15 to 20 degrees
     color_jitter:
-      brightness: 0.2
-      contrast: 0.2
-      saturation: 0.2
-      hue: 0.1
+      brightness: 0.3  # Increased from 0.2
+      contrast: 0.3  # Increased from 0.2
+      saturation: 0.3  # Increased from 0.2
+      hue: 0.15  # Increased from 0.1
+    blur: 0.1  # Add blur to simulate out-of-focus images
     normalize:
       mean: [0.485, 0.456, 0.406]
       std: [0.229, 0.224, 0.225]
 
   # Validation augmentations (minimal)
   val:
-    resize: 256
-    center_crop: 224
+    resize: 448  # Resize to 448 then center crop to 384
+    center_crop: 384  # Changed from 224 to 384
     normalize:
       mean: [0.485, 0.456, 0.406]
       std: [0.229, 0.224, 0.225]
 
 regularization:
-  dropout: 0.2
-  mixup_alpha: 0.8
-  cutmix_alpha: 1.0
+  dropout: 0.3  # Increased from 0.2 for stronger regularization
+  mixup_alpha: 1.0  # Increased from 0.8
+  cutmix_alpha: 1.2  # Increased from 1.0
   mixup_prob: 0.5
 
 callbacks:
   early_stopping: true
   early_stopping_patience: 3
-  early_stopping_metric: "loss"
+  early_stopping_metric: "top1_acc"  # Changed from "loss" to monitor accuracy
   save_checkpoint_every: 1
   save_best: true
   checkpoint_metric: "top1_acc"

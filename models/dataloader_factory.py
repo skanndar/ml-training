@@ -84,6 +84,9 @@ class DataLoaderFactory:
             if 'horizontal_flip' in aug_config:
                 transforms.append(A.HorizontalFlip(p=aug_config['horizontal_flip']))
 
+            if 'vertical_flip' in aug_config:
+                transforms.append(A.VerticalFlip(p=aug_config['vertical_flip']))
+
             if 'rotation' in aug_config:
                 transforms.append(A.Rotate(limit=aug_config['rotation'], p=0.3))
 
@@ -96,6 +99,9 @@ class DataLoaderFactory:
                     hue=jitter.get('hue', 0.1),
                     p=0.5
                 ))
+
+            if 'blur' in aug_config:
+                transforms.append(A.Blur(blur_limit=3, p=aug_config['blur']))
 
         # Normalization (always last before ToTensor)
         if 'normalize' in aug_config:
@@ -114,7 +120,8 @@ class DataLoaderFactory:
         self,
         jsonl_path: str,
         mode: str = 'train',
-        region_filter: Optional[str] = None
+        region_filter: Optional[str] = None,
+        class_to_idx: Optional[Dict] = None
     ) -> StreamingImageDataset:
         """
         Create StreamingImageDataset.
@@ -123,6 +130,7 @@ class DataLoaderFactory:
             jsonl_path: Path to JSONL file
             mode: 'train' or 'val'
             region_filter: Optional region filter (EU_SW, etc.)
+            class_to_idx: Optional pre-built class mapping (for val to use train's mapping)
 
         Returns:
             StreamingImageDataset instance
@@ -134,6 +142,10 @@ class DataLoaderFactory:
         cache_dir = self.paths['data']['cache_dir']
         cache_size_gb = self.config.get('data', {}).get('cache_size_gb', 100)
 
+        # Get smart crop config
+        smart_crop = self.config.get('data', {}).get('smart_crop', False)
+        image_size = self.config.get('data', {}).get('image_size', 224)
+
         # Create dataset
         dataset = StreamingImageDataset(
             jsonl_path=jsonl_path,
@@ -141,7 +153,10 @@ class DataLoaderFactory:
             cache_size_gb=cache_size_gb,
             transform=transform,
             download_timeout=10,
-            min_image_size=(50, 50)
+            min_image_size=(50, 50),
+            smart_crop=smart_crop,
+            smart_crop_size=image_size,
+            class_to_idx=class_to_idx
         )
 
         # Apply region filter if specified
@@ -216,16 +231,19 @@ class DataLoaderFactory:
             logger.info(f"  Region filter: {region_filter}")
 
         # Create datasets
+        # CRITICAL: Train creates its class mapping first
         train_dataset = self.create_dataset(
             train_jsonl,
             mode='train',
             region_filter=region_filter
         )
 
+        # CRITICAL: Val MUST use train's class mapping to avoid index mismatch
         val_dataset = self.create_dataset(
             val_jsonl,
             mode='val',
-            region_filter=None  # Usually validate on full dataset
+            region_filter=None,  # Usually validate on full dataset
+            class_to_idx=train_dataset.class_to_idx  # Use train's mapping!
         )
 
         # Create dataloaders

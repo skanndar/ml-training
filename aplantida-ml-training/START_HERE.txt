@@ -1,0 +1,158 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                            ⭐ START HERE ⭐                               ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+Si tienes 5 MINUTOS:
+  Lee: README.md
+
+Si tienes 30 MINUTOS:
+  Lee: README.md + ARQUITECTURA.md
+
+Si tienes 1 HORA:
+  Lee: README.md + ARQUITECTURA.md + FASES_ENTRENAMIENTO.md (primeras 2 fases)
+
+Si vas a ENTRENAR:
+  1. Entiende: ARQUITECTURA.md (15 min)
+  2. Setup: ESTRUCTURA_SCRIPTS.md (30 min)
+  3. Ejecuta: FASES_ENTRENAMIENTO.md (sigue paso a paso)
+  4. Valida: METRICAS_EVALUACION.md (después de cada fase)
+
+Si tienes DUDAS:
+  → Busca en FASES_ENTRENAMIENTO.md § Troubleshooting
+  → O en RESUMEN_EJECUTIVO.md § Risks
+
+Si es sobre LICENCIAS:
+  → LICENCIAS_CHECKLIST.md (antes de deploy)
+
+Si es sobre DEPLOYMENT PWA:
+  → EXPORT_TFJS_PWA.md
+
+Si necesitas COMANDOS RÁPIDO:
+  → QUICKSTART.sh (copy-paste)
+
+═════════════════════════════════════════════════════════════════════════════
+
+ROADMAP RECOMENDADO
+
+Día 1: Entender
+  ├─ Lee README.md (5 min)
+  ├─ Lee ARQUITECTURA.md (5 min)
+  ├─ Lee RESUMEN_EJECUTIVO.md (10 min)
+  └─ Resultado: Entiendes el plan
+
+Día 2: Setup
+  ├─ Lee ESTRUCTURA_SCRIPTS.md (30 min)
+  ├─ Crea venv, instala dependencias (30 min)
+  └─ Resultado: Repo listo
+
+Día 3: Primeros datos
+  ├─ Lee DATOS_PIPELINE.md (20 min)
+  ├─ Ejecuta Fase 0 (audit_dataset.py) (2-3 horas)
+  └─ Resultado: Dataset validado
+
+Día 4-15: Entrenar
+  ├─ Lee FASES_ENTRENAMIENTO.md (25 min)
+  ├─ Ejecuta fases 1-7 (9-14 días)
+  ├─ Consulta METRICAS_EVALUACION.md cuando necesites validar
+  └─ Resultado: Modelo entrenado
+
+Día 16: Deploy
+  ├─ Lee EXPORT_TFJS_PWA.md (20 min)
+  ├─ Lee LICENCIAS_CHECKLIST.md (15 min)
+  ├─ Ejecuta export a TF.js (2-3 horas)
+  └─ Resultado: Modelo en PWA
+
+═════════════════════════════════════════════════════════════════════════════
+
+DOCUMENTOS POR URGENCIA
+
+[⭐⭐⭐ AHORA] README.md
+  Si no sabes nada, empieza aquí
+
+[⭐⭐⭐ AHORA] ARQUITECTURA.md
+  Entiende el sistema antes de ejecutar
+
+[⭐⭐ MUY PRONTO] FASES_ENTRENAMIENTO.md
+  Cuando estés listo para entrenar (será tu referencia principal)
+
+[⭐⭐ MUY PRONTO] ESTRUCTURA_SCRIPTS.md
+  Cuando hagas setup del repo
+
+[⭐ ANTES DE DEPLOY] LICENCIAS_CHECKLIST.md
+  Solo cuando vayas a producción
+
+[⭐ SI NECESITAS] DISTILLATION_DESIGN.md
+  Si quieres entender la teoría exacta
+
+[⭐ SI TIENES PROBLEMAS] FASES_ENTRENAMIENTO.md § Troubleshooting
+  Cuando algo falle
+
+═════════════════════════════════════════════════════════════════════════════
+
+QUICK LINKS BY QUESTION
+
+"¿Qué es este plan?"
+  → README.md
+
+"¿Cómo funciona?"
+  → ARQUITECTURA.md
+
+"¿Qué debo hacer?"
+  → FASES_ENTRENAMIENTO.md
+
+"¿Cuánto va a costar en licencias?"
+  → LICENCIAS_CHECKLIST.md
+
+"¿Cuáles son los riesgos?"
+  → README.md § Riesgos | RESUMEN_EJECUTIVO.md § Risks
+
+"¿Qué specs de GPU necesito?"
+  → ESTRUCTURA_SCRIPTS.md § Requirements
+
+"¿Cómo despliego en PWA?"
+  → EXPORT_TFJS_PWA.md
+
+"¿Qué pasa si algo falla?"
+  → FASES_ENTRENAMIENTO.md § Troubleshooting
+
+"¿Cómo reproduzco?"
+  → ESTRUCTURA_SCRIPTS.md § reproduce_full_pipeline.sh
+
+═════════════════════════════════════════════════════════════════════════════
+
+TL;DR (Too Long; Didn't Read)
+
+1. Plan: Entrenar modelo único (student) desde ensemble de 3 teachers
+2. Técnica: Knowledge distillation + fine-tuning con datos reales
+3. Output: 75% Top-1 accuracy, 5-7MB tamaño, offline en PWA
+4. Tiempo: 9-14 días GPU
+5. Costo: 0 (solo licencias permisivas)
+6. Riesgo: Bajo (todos mitigados)
+7. Reproducible: Sí (seed fijo, manifest, scripts automáticos)
+
+═════════════════════════════════════════════════════════════════════════════
+
+VERIFICACIÓN: ¿TENGO TODO?
+
+☐ He leído README.md
+☐ He leído ARQUITECTURA.md
+☐ Entiendo qué es el plan
+☐ Tengo GPU >= 8GB disponible
+☐ Tengo acceso a Mongo local
+☐ Tengo Python 3.11+ instalado
+☐ He leído ESTRUCTURA_SCRIPTS.md
+☐ He creado el venv
+
+Si todo está ☐, continúa a FASES_ENTRENAMIENTO.md
+
+═════════════════════════════════════════════════════════════════════════════
+
+PRÓXIMO PASO EXACTO
+
+Copia este comando en terminal:
+
+  cat /home/skanndar/SynologyDrive/local/rehabProyectos/docs/aplantida-ml-training/README.md | less
+
+Y luego sigue los pasos en README.md.
+
+═════════════════════════════════════════════════════════════════════════════

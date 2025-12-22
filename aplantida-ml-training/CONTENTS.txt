@@ -1,0 +1,247 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║         APLANTIDA ML TRAINING PLAN - COMPLETE DOCUMENTATION SET           ║
+║                                                                            ║
+║  Directory: /home/skanndar/SynologyDrive/local/rehabProyectos/docs/       ║
+║             aplantida-ml-training/                                         ║
+║                                                                            ║
+║  Total: 10 documents + 1 script reference                                 ║
+║  Size: 141 KB (all text, no binaries)                                     ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📋 COMPLETE FILE LIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. README.md (5.8 KB)
+   └─ Overview, timeline, assumptions, critical risks
+   └─ START HERE for orientation
+
+2. ARQUITECTURA.md (11 KB)
+   └─ End-to-end system diagram
+   └─ Data flow: Mongo → CDN → Training → TF.js → PWA
+   └─ Technology stack, component descriptions
+   └─ READ THIS for understanding the system
+
+3. DATOS_PIPELINE.md (14 KB)
+   └─ Dataset audit from Mongo
+   └─ URL validation & image downloading
+   └─ Stratified train/val/test split
+   └─ Data augmentation strategies
+   └─ REFERENCE for data preparation
+
+4. DISTILLATION_DESIGN.md (17 KB)
+   └─ Student model architecture (MobileNetV2)
+   └─ Distillation loss function & temperature scaling
+   └─ Ensemble combination strategies
+   └─ Soft label generation (precomputed vs on-the-fly)
+   └─ REFERENCE for knowledge distillation
+
+5. FASES_ENTRENAMIENTO.md (17 KB)
+   └─ 7 phases with exact commands
+   │  ├─ Fase 0: Audit + baseline
+   │  ├─ Fase 1: Teacher global training
+   │  ├─ Fase 2: Teacher regional (SW Europe)
+   │  ├─ Fase 3: Distillation preparation
+   │  ├─ Fase 4: Student training (distill + finetune)
+   │  ├─ Fase 5: Calibration & threshold
+   │  ├─ Fase 6: Export to TF.js
+   │  └─ Fase 7: Reproducibility
+   └─ Success criteria & troubleshooting for each
+   └─ ⭐ MAIN REFERENCE - Use this for execution
+
+6. METRICAS_EVALUACION.md (14 KB)
+   └─ Top-K accuracy (Top-1, Top-5)
+   └─ Per-region metrics (Spain vs Europe vs World)
+   └─ Per-class metrics (identifying problem classes)
+   └─ Calibration: ECE, temperature scaling
+   └─ Confidence threshold analysis
+   └─ Full evaluation pipeline
+   └─ REFERENCE for validation
+
+7. EXPORT_TFJS_PWA.md (16 KB)
+   └─ Model quantization (FP16, INT8)
+   └─ Export pipeline: PyTorch → ONNX → SavedModel → TF.js
+   └─ TF.js format validation
+   └─ Service Worker caching strategy
+   └─ Model versioning & updates
+   └─ Backend API endpoints
+   └─ Production deployment checklist
+   └─ REFERENCE for PWA integration
+
+8. LICENCIAS_CHECKLIST.md (9.2 KB)
+   └─ Legal compliance for commercial deployment
+   └─ Teachers: Apache-2.0 / MIT only
+   └─ Dataset: CC0 / CC-BY / CC-BY-SA (filter CC-BY-NC)
+   └─ Student: Inherits from teachers
+   └─ Scenario: experimental vs production pipelines
+   └─ Attribution requirements
+   └─ Risk analysis
+   └─ Automated compliance checker
+   └─ ⚖️ CRITICAL BEFORE DEPLOY
+
+9. ESTRUCTURA_SCRIPTS.md (17 KB)
+   └─ Project directory structure
+   └─ Requirements.txt & environment.yaml
+   └─ Configuration YAML files (teacher_global.yaml, etc)
+   └─ Master reproducible script (reproduce_full_pipeline.sh)
+   └─ CLI argument patterns
+   └─ Testing structure
+   └─ .gitignore template
+   └─ REFERENCE for repo setup
+
+10. RESUMEN_EJECUTIVO.md (9 KB)
+    └─ Executive summary of entire plan
+    └─ What you get, why it's well-designed
+    └─ Risk mitigation table
+    └─ Implementation options
+    └─ Key architectural decisions with rationale
+    └─ Action items checklist
+    └─ REFERENCE for overview & decisions
+
+BONUS: QUICKSTART.sh (6 KB)
+    └─ Bash script with all commands in order
+    └─ Copy-paste ready for each phase
+    └─ Monitoring commands (tensorboard, logs)
+    └─ Cleanup commands
+    └─ Status check one-liners
+    └─ REFERENCE for command shortcuts
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 WHAT EACH DOCUMENT COVERS
+
+DESIGN PHASE (Understanding)
+├─ README.md
+├─ ARQUITECTURA.md
+├─ DISTILLATION_DESIGN.md
+└─ LICENCIAS_CHECKLIST.md
+
+DATA PHASE (Preparation)
+├─ DATOS_PIPELINE.md
+└─ ESTRUCTURA_SCRIPTS.md
+
+IMPLEMENTATION PHASE (Execution)
+├─ FASES_ENTRENAMIENTO.md ⭐ Main reference
+├─ METRICAS_EVALUACION.md
+└─ QUICKSTART.sh (commands)
+
+DEPLOYMENT PHASE (Production)
+├─ EXPORT_TFJS_PWA.md
+└─ LICENCIAS_CHECKLIST.md (final check)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 READING ORDER BY ROLE
+
+👨‍💼 Manager / Project Lead
+1. README.md (5 min)
+2. RESUMEN_EJECUTIVO.md (10 min)
+3. FASES_ENTRENAMIENTO.md § Timeline (2 min)
+Total: 17 min → You know the plan, timeline, risks
+
+👨‍🔬 ML Engineer
+1. ARQUITECTURA.md (5 min)
+2. DISTILLATION_DESIGN.md (15 min)
+3. FASES_ENTRENAMIENTO.md (20 min)
+4. METRICAS_EVALUACION.md (10 min)
+Total: 50 min → You understand the ML design
+
+👨‍💻 Software Engineer
+1. ESTRUCTURA_SCRIPTS.md (15 min)
+2. FASES_ENTRENAMIENTO.md (20 min)
+3. EXPORT_TFJS_PWA.md (10 min)
+4. QUICKSTART.sh (copy cmds as needed)
+Total: 45 min → You can implement the pipeline
+
+⚖️ Legal / Compliance Officer
+1. LICENCIAS_CHECKLIST.md (10 min)
+2. ARQUITECTURA.md § Technologies (2 min)
+3. DATOS_PIPELINE.md § Licencias (2 min)
+Total: 14 min → You know what's safe for production
+
+🚀 DevOps / Deployment
+1. EXPORT_TFJS_PWA.md (15 min)
+2. ESTRUCTURA_SCRIPTS.md (10 min)
+3. LICENCIAS_CHECKLIST.md (5 min)
+Total: 30 min → You can deploy to production
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ VERIFICATION CHECKLIST
+
+Before starting, verify you have:
+
+Documentation:
+[ ] README.md
+[ ] ARQUITECTURA.md
+[ ] DATOS_PIPELINE.md
+[ ] DISTILLATION_DESIGN.md
+[ ] FASES_ENTRENAMIENTO.md
+[ ] METRICAS_EVALUACION.md
+[ ] EXPORT_TFJS_PWA.md
+[ ] LICENCIAS_CHECKLIST.md
+[ ] ESTRUCTURA_SCRIPTS.md
+[ ] RESUMEN_EJECUTIVO.md
+
+Supporting:
+[ ] QUICKSTART.sh (commands reference)
+[ ] .INDEX.txt (this file)
+[ ] CONTENTS.txt (file listing)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📈 EXPECTED OUTCOMES
+
+After implementing the plan, you'll have:
+
+✓ Audit of ~900k plant images from Mongo
+✓ ViT-Base teacher fine-tuned globally (72% top-1)
+✓ ViT-Base teacher fine-tuned regionally (88% top-1 Spain)
+✓ MobileNetV2 student trained via distillation + fine-tuning
+✓ Student performance: 75% top-1, 90% top-5 globally
+✓ Student model: 15MB base, 5-7MB cuantizado
+✓ TF.js deployment: Full model.json + shards < 150MB
+✓ PWA integration: Offline-first, cached, versioned
+✓ License compliance: Production-ready, commercial-safe
+✓ Reproducibility: Full pipeline automated, manifest versioned
+
+Timeline: 9-14 days on single GPU (RTX 3090+)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔗 CROSS-REFERENCES
+
+Each document links to others. Examples:
+
+- README.md → ARQUITECTURA.md (§ Architecture)
+- FASES_ENTRENAMIENTO.md → DATOS_PIPELINE.md (§ Data)
+- FASES_ENTRENAMIENTO.md → DISTILLATION_DESIGN.md (§ Phase 4)
+- EXPORT_TFJS_PWA.md → ESTRUCTURA_SCRIPTS.md (§ Repo)
+- LICENCIAS_CHECKLIST.md → DATOS_PIPELINE.md (§ Licenses)
+
+If lost, cross-references guide you.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 VERSION CONTROL
+
+Plan version: v1.0
+Last updated: 2024-12-17
+Designed for: Aplantida PWA ML training
+Assumptions verified: ✓
+Ready for implementation: ✓
+
+If you find issues:
+1. Check "Troubleshooting" in relevant document
+2. Check cross-referenced docs
+3. Refer to RESUMEN_EJECUTIVO.md § Risks
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 NEXT STEP
+
+1. Read: README.md (get oriented)
+2. Read: ARQUITECTURA.md (understand system)
+3. Setup: ESTRUCTURA_SCRIPTS.md § Installation
+4. Execute: FASES_ENTRENAMIENTO.md § Phase 0
+
+Good luck! 🌿

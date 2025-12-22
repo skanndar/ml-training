@@ -9,7 +9,13 @@ Features:
 - Retry logic for failed downloads
 - Memory-efficient (only keeps recent images)
 
-FIXED: Cache eviction now maintains strict size limit even with concurrent workers
+Usage:
+    dataset = StreamingImageDataset(
+        jsonl_path="./data/dataset_train.jsonl",
+        cache_dir="./data/image_cache",
+        cache_size_gb=100,
+        augmentations=train_augmentations
+    )
 """
 
 import hashlib
@@ -32,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 class LRUImageCache:
-    """Thread-safe LRU cache for downloaded images with strict size management."""
+    """Thread-safe LRU cache for downloaded images."""
 
     def __init__(self, cache_dir: str, max_size_gb: float = 100):
         """
@@ -44,8 +50,6 @@ class LRUImageCache:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
         self.max_size_bytes = int(max_size_gb * 1024 * 1024 * 1024)
-        # Safety margin: evict down to 90% of max to prevent overshoot with concurrent writes
-        self.target_size_bytes = int(self.max_size_bytes * 0.90)
         self.current_size_bytes = 0
 
         # Track files: {filename: (size_bytes, last_access_time)}
@@ -57,11 +61,6 @@ class LRUImageCache:
 
         logger.info(f"LRU Cache initialized: {cache_dir} (max {max_size_gb}GB)")
         logger.info(f"Current cache size: {self.current_size_bytes / 1024 / 1024 / 1024:.2f}GB")
-
-        # If cache is already over limit, evict immediately
-        if self.current_size_bytes > self.max_size_bytes:
-            logger.warning(f"Cache size ({self.current_size_bytes / 1024 / 1024 / 1024:.2f}GB) exceeds limit, evicting...")
-            self._evict_lru()
 
     def _scan_cache(self):
         """Scan cache directory and build file index."""
@@ -78,12 +77,8 @@ class LRUImageCache:
                 logger.warning(f"Error scanning {filepath}: {e}")
 
     def _evict_lru(self):
-        """Evict least recently used files until under target size (with safety margin)."""
-        evicted_count = 0
-        evicted_size = 0
-
-        # Evict down to target size (90% of max) to prevent immediate re-eviction
-        while self.current_size_bytes > self.target_size_bytes and self.files:
+        """Evict least recently used files until under max_size."""
+        while self.current_size_bytes > self.max_size_bytes and self.files:
             # Remove oldest (first in OrderedDict)
             filename, (size, _) = self.files.popitem(last=False)
             filepath = self.cache_dir / filename
@@ -92,8 +87,7 @@ class LRUImageCache:
                 if filepath.exists():
                     filepath.unlink()
                     self.current_size_bytes -= size
-                    evicted_size += size
-                    evicted_count += 1
+                    logger.debug(f"Evicted from cache: {filename} ({size/1024/1024:.1f}MB)")
                 else:
                     # File doesn't exist but was in tracking - update size anyway
                     self.current_size_bytes -= size
@@ -105,8 +99,6 @@ class LRUImageCache:
                     import shutil
                     shutil.rmtree(filepath, ignore_errors=True)
                     self.current_size_bytes -= size
-                    evicted_size += size
-                    evicted_count += 1
                 except Exception as e2:
                     logger.error(f"Failed to force evict {filename}: {e2}")
                     # Still reduce size to prevent infinite loop
@@ -115,9 +107,6 @@ class LRUImageCache:
                 logger.error(f"Failed to evict {filename}: {e}")
                 # Still reduce size to prevent infinite loop
                 self.current_size_bytes = max(0, self.current_size_bytes - size)
-
-        if evicted_count > 0:
-            logger.info(f"Evicted {evicted_count} files ({evicted_size / 1024 / 1024:.1f}MB) from cache")
 
     def get(self, url: str) -> Optional[Path]:
         """
@@ -145,7 +134,7 @@ class LRUImageCache:
 
     def put(self, url: str, image_bytes: bytes) -> Path:
         """
-        Store image in cache with proactive eviction.
+        Store image in cache.
 
         Args:
             url: Image URL
@@ -156,19 +145,11 @@ class LRUImageCache:
         """
         filename = self._url_to_filename(url)
         filepath = self.cache_dir / filename
-        size = len(image_bytes)
 
         with self.lock:
-            # CRITICAL FIX: Evict BEFORE writing to prevent overshoot
-            # Check if adding this file would exceed target
-            projected_size = self.current_size_bytes + size
-
-            # If we're already over target OR adding this file would push us over, evict first
-            if self.current_size_bytes > self.target_size_bytes or projected_size > self.target_size_bytes:
-                self._evict_lru()
-
             # Write to disk
             filepath.write_bytes(image_bytes)
+            size = len(image_bytes)
 
             # Update tracking
             if filename in self.files:
@@ -177,6 +158,9 @@ class LRUImageCache:
 
             self.files[filename] = (size, time.time())
             self.current_size_bytes += size
+
+            # Evict if over limit
+            self._evict_lru()
 
         return filepath
 
@@ -221,45 +205,24 @@ class ImageDownloader:
         self.min_size = min_size
         self.max_size = max_size
 
-        # Rate limiting state
-        self.rate_limited = False
-        self.rate_limit_until = 0  # Timestamp when to retry downloads
-        self.rate_limit_backoff = 60  # Start with 60 seconds
-        self.consecutive_429s = 0
-
         # Stats
         self.stats = {
             'downloaded': 0,
             'cached': 0,
             'failed': 0,
-            'invalid': 0,
-            'rate_limited_skips': 0
+            'invalid': 0
         }
 
     def download(self, url: str) -> Optional[bytes]:
         """
-        Download image with retries. Automatically detects rate limiting (429)
-        and switches to cache-only mode temporarily.
+        Download image with retries.
 
         Args:
             url: Image URL
 
         Returns:
-            Image bytes, or None if failed or rate limited
+            Image bytes, or None if failed
         """
-        # Check if we're currently rate limited
-        current_time = time.time()
-        if self.rate_limited:
-            if current_time < self.rate_limit_until:
-                # Still rate limited, skip download
-                self.stats['rate_limited_skips'] += 1
-                return None
-            else:
-                # Rate limit period expired, try again
-                logger.info(f"Rate limit backoff expired ({self.rate_limit_backoff}s), resuming downloads")
-                self.rate_limited = False
-                self.rate_limit_backoff = 60  # Reset backoff
-
         for attempt in range(self.max_retries):
             try:
                 response = requests.get(
@@ -269,26 +232,8 @@ class ImageDownloader:
                 )
 
                 if response.status_code == 200:
-                    # Success! Reset rate limit counters
-                    self.consecutive_429s = 0
                     self.stats['downloaded'] += 1
                     return response.content
-
-                elif response.status_code == 429:
-                    # Rate limited! Enter cache-only mode
-                    self.consecutive_429s += 1
-
-                    # Exponential backoff: 60s, 120s, 300s (5min), 600s (10min), max 600s
-                    self.rate_limit_backoff = min(60 * (2 ** (self.consecutive_429s - 1)), 600)
-                    self.rate_limit_until = current_time + self.rate_limit_backoff
-                    self.rate_limited = True
-
-                    logger.warning(
-                        f"Rate limit detected (429). Entering cache-only mode for {self.rate_limit_backoff}s. "
-                        f"Consecutive 429s: {self.consecutive_429s}"
-                    )
-                    self.stats['failed'] += 1
-                    return None
 
             except requests.RequestException as e:
                 if attempt == self.max_retries - 1:
@@ -347,7 +292,7 @@ class StreamingImageDataset:
 
     Features:
     - On-demand downloading
-    - LRU caching with strict size limit
+    - LRU caching
     - Automatic validation
     - Configurable augmentations
     """
@@ -361,10 +306,7 @@ class StreamingImageDataset:
         download_timeout: int = 10,
         min_image_size: Tuple[int, int] = (50, 50),
         prefetch: bool = False,
-        num_prefetch_workers: int = 4,
-        smart_crop: bool = False,
-        smart_crop_size: int = 384,
-        class_to_idx: Optional[Dict[str, int]] = None
+        num_prefetch_workers: int = 4
     ):
         """
         Args:
@@ -376,27 +318,9 @@ class StreamingImageDataset:
             min_image_size: Minimum valid image dimensions
             prefetch: Whether to prefetch images in background
             num_prefetch_workers: Number of prefetch threads
-            smart_crop: Enable saliency-based smart cropping
-            smart_crop_size: Target size for smart crop
-            class_to_idx: Optional pre-built class-to-index mapping (for val to use train's mapping)
         """
         self.jsonl_path = jsonl_path
         self.transform = transform
-        self.smart_crop_enabled = smart_crop
-        self.smart_crop_size = smart_crop_size
-
-        # Initialize smart cropper if enabled
-        if self.smart_crop_enabled:
-            try:
-                from models.smart_crop import SaliencyCropper
-                self.smart_cropper = SaliencyCropper(target_size=smart_crop_size)
-                logger.info(f"Smart crop enabled (target size: {smart_crop_size}x{smart_crop_size})")
-            except Exception as e:
-                logger.warning(f"Failed to initialize smart cropper: {e}. Disabling smart crop.")
-                self.smart_crop_enabled = False
-                self.smart_cropper = None
-        else:
-            self.smart_cropper = None
 
         # Load records
         self.records = self._load_jsonl(jsonl_path)
@@ -409,13 +333,9 @@ class StreamingImageDataset:
             min_size=min_image_size
         )
 
-        # Build class mapping (or use provided one)
-        if class_to_idx is not None:
-            self.class_to_idx = class_to_idx
-            logger.info(f"Using provided class mapping with {len(self.class_to_idx)} classes")
-        else:
-            self.class_to_idx = self._build_class_mapping()
-            logger.info(f"Built class mapping: {len(self.class_to_idx)} unique classes")
+        # Build class mapping
+        self.class_to_idx = self._build_class_mapping()
+        logger.info(f"Found {len(self.class_to_idx)} unique classes")
 
     def _load_jsonl(self, filepath: str) -> list:
         """Load JSONL file."""
@@ -475,22 +395,12 @@ class StreamingImageDataset:
         # Fallback: black image if download failed
         if img is None:
             logger.warning(f"Failed to load image for {class_name}, using blank")
-            fallback_size = self.smart_crop_size if self.smart_crop_enabled else 224
-            img = Image.new('RGB', (fallback_size, fallback_size), color=(0, 0, 0))
-
-        # Apply smart crop BEFORE other transformations
-        if self.smart_crop_enabled and self.smart_cropper is not None:
-            try:
-                img = self.smart_cropper.smart_crop(img)
-            except Exception as e:
-                logger.debug(f"Smart crop failed for {class_name}: {e}. Using center crop.")
-                # Fallback to center crop
-                img = self.smart_cropper.center_crop(img)
+            img = Image.new('RGB', (224, 224), color=(0, 0, 0))
 
         # Convert to numpy
         img_array = np.array(img)
 
-        # Apply transformations (augmentations)
+        # Apply transformations
         if self.transform:
             img_array = self.transform(image=img_array)['image']
 

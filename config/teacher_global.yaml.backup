@@ -1,0 +1,78 @@
+# Teacher Global Configuration
+# Fine-tunes a ViT-Base model on the full dataset
+
+model:
+  name: "vit_base_patch16_224"
+  pretrained: true
+  # num_classes will be determined dynamically from dataset
+
+training:
+  learning_rate: 1.0e-5
+  batch_size: 16  # Reduced for 4GB VRAM (RTX 3050 Ti)
+  epochs: 15
+  warmup_epochs: 2
+  optimizer: "adamw"
+  weight_decay: 0.01
+  gradient_clip: 1.0
+  label_smoothing: 0.1
+
+data:
+  # train_jsonl: "./data/dataset_train.jsonl"
+  # val_jsonl: "./data/dataset_val.jsonl"
+  train_jsonl: "./data/dataset_train_cached_only.jsonl"  # ← CAMBIAR
+  val_jsonl: "./data/dataset_val_cached_only.jsonl"      # ← CAMBIAR
+  image_size: 224
+  # num_workers: 12  # Increased for streaming dataset (I/O bound)
+  num_workers: 8  # Reducir de 12 a 8 (menos carga)
+
+
+augmentation:
+  # Training augmentations
+  train:
+    resize: 256
+    crop: 224
+    horizontal_flip: 0.5
+    rotation: 15
+    color_jitter:
+      brightness: 0.2
+      contrast: 0.2
+      saturation: 0.2
+      hue: 0.1
+    normalize:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+
+  # Validation augmentations (minimal)
+  val:
+    resize: 256
+    center_crop: 224
+    normalize:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+
+regularization:
+  dropout: 0.2
+  mixup_alpha: 0.8
+  cutmix_alpha: 1.0
+  mixup_prob: 0.5
+
+callbacks:
+  early_stopping: true
+  early_stopping_patience: 3
+  early_stopping_metric: "loss"
+  save_checkpoint_every: 1
+  save_best: true
+  checkpoint_metric: "top1_acc"
+
+logging:
+  log_every_n_steps: 100
+  tensorboard: true
+
+device:
+  type: "cuda"
+  mixed_precision: true
+  compile: false  # PyTorch 2.0 compile (optional)
+
+output:
+  checkpoint_dir: "./checkpoints/teacher_global"
+  results_dir: "./results/teacher_global_v1"

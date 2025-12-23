@@ -10,11 +10,23 @@
 
 ---
 
+## Estado actual (diciembre 2025)
+
+- **Fase 0 documentada (17 dic 2025):** `dataset_train.jsonl` tiene 136,312 muestras (7,120 clases) con 92.4% de licencias permisivas (CC0/CC-BY/CC-BY-SA). Ver `../PHASE_0_COMPLETE.md`.
+- **Refactor Fase 1:** `scripts/create_stratified_split.py` genera `dataset_{train,val,test}_stratified.jsonl` (93,761 / 12,639 / 11,726) solo con imágenes cacheadas. Cada registro mantiene el campo `license` para trazabilidad.
+- **Nueva exportación (20 dic 2025):** 741,533 imágenes disponibles (365,025 iNaturalist + 376,481 legacy). Las fuentes legacy (propias) son permisivas; las de iNaturalist siguen requiriendo filtro por imagen (`SUMMARY_SESSION_20251220.md`).
+- **Teachers en uso:** `vit_base_patch16_384` vía `timm` (Apache-2.0) y MobileNetV2 (TensorFlow, Apache-2.0) para distillation. Soft labels se generarán solo desde teachers permisivos.
+- **Objetivo pendiente:** elevar el split de producción a ≥95% licencias permisivas revisando/filtrando las muestras CC-BY-NC restantes del train estratificado antes de distillation/export.
+
+---
+
 ## Análisis por Componente
 
 ### 1. Teachers (Modelos)
 
 #### Teacher A: ViT-Base (ImageNet)
+
+**Uso actual (dic 2025):** `vit_base_patch16_384` desde `timm` (Apache-2.0). Configurado en `ml-training/config/teacher_global.yaml` y lanzado vía `START_TRAINING_384.sh`.
 
 **Opción 1: Timm (PyTorch Image Models)**
 ```
@@ -96,6 +108,13 @@ Si teachers son:
 
 ### 3. Dataset de Imágenes
 
+#### Snapshot actual
+
+- `dataset_raw.jsonl` (17 dic) → 340,749 imágenes, 161,791 LIC permisivas (47.5%), 178,958 restringidas (`PHASE_0_COMPLETE.md`).
+- `dataset_train.jsonl` → 136,312 muestras (92.4% permisivas) usadas en la primera corrida ViT.
+- `dataset_{train,val,test}_stratified.jsonl` → 93,761 / 12,639 / 11,726 registros cacheados, cada línea incluye `license` para filtrar antes de distillation.
+- Nueva exportación 741,533 imágenes (20 dic) → combina 365k iNaturalist + 376k legacy (propias). Licencia final dependerá de cuántas iNat CC-BY-NC se descarten.
+
 #### iNaturalist
 
 ```json
@@ -159,21 +178,21 @@ Action: Filter CC-BY-NC antes de usar
 
 ### ✓ Preentrenamiento & Weights
 
-- [ ] ViT-Base: Apache-2.0 confirmado
-- [ ] MobileNetV2: Apache-2.0 confirmado
-- [ ] ImageNet pesos: Dominio público confirmado
-- [ ] Ningún modelo con licencia NC/GPL
+- [x] ViT-Base: Apache-2.0 confirmado (`timm` / `config/teacher_global.yaml`)
+- [x] MobileNetV2: Apache-2.0 confirmado (TensorFlow/TF.js)
+- [x] ImageNet pesos: Distribuidos con licencia permisiva (usados solo como init)
+- [x] Ningún modelo con licencia NC/GPL
 
 ### ✓ Fine-tuning Data
 
-- [ ] Dataset filtrado (solo CC0, CC-BY, CC-BY-SA)
-- [ ] iNaturalist CC-BY-NC REMOVIDO
-- [ ] Perenual no-comercial REMOVIDO
-- [ ] % de datos permisivos >= 95%
+- [ ] Dataset filtrado (solo CC0, CC-BY, CC-BY-SA) — actual: 92.4% en `dataset_train.jsonl` / 93,761 muestras estratificadas
+- [ ] iNaturalist CC-BY-NC REMOVIDO — pendiente segunda pasada sobre `dataset_train_stratified.jsonl`
+- [ ] Perenual no-comercial REMOVIDO — validar por fuente durante filtrado final
+- [ ] % de datos permisivos >= 95% — meta aún no alcanzada (faltan ~2.6 pp)
 
 ### ✓ Teachers
 
-- [ ] Teacher global: Licencia permisiva verificada
+- [x] Teacher global: Licencia permisiva verificada (`vit_base_patch16_384` Apache-2.0)
 - [ ] Teacher regional: Licencia heredada verificada
 - [ ] Soft labels: Derivadas solo de teachers permisivos
 

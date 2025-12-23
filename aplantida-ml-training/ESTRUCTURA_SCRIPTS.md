@@ -55,7 +55,13 @@
 ├── data/                               # Dataset (NO commitear)
 │   ├── dataset_raw.jsonl
 │   ├── dataset_splits.jsonl
-│   ├── dataset_eu_sw_train.jsonl
+│   ├── dataset_train_stratified.jsonl
+│   ├── dataset_val_stratified.jsonl
+│   ├── dataset_test_stratified.jsonl
+│   ├── dataset_eu_sw_train.jsonl              # subset legacy
+│   ├── dataset_eu_sw_train_stratified.jsonl   # nuevo split fase 2
+│   ├── dataset_eu_sw_val_stratified.jsonl
+│   ├── dataset_eu_sw_test_stratified.jsonl
 │   ├── soft_labels_combined_train.npz
 │   ├── teacher_global_logits_train.npz
 │   ├── teacher_regional_logits_train.npz

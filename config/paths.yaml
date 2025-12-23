@@ -13,7 +13,7 @@ data:
   cache_dir: "./data/image_cache"
   raw_jsonl: "./data/dataset_raw.jsonl"
   splits_jsonl: "./data/dataset_splits.jsonl"
-  regional_jsonl: "./data/dataset_eu_sw.jsonl"
+  regional_jsonl: "./data/dataset_eu_sw_train_stratified.jsonl"
   soft_labels: "./data/soft_labels_combined.npz"
   teacher_global_logits: "./data/teacher_global_logits.npz"
   teacher_regional_logits: "./data/teacher_regional_logits.npz"

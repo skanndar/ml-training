@@ -1,10 +1,8 @@
-# Teacher Regional Configuration
-# Teacher B (SW Europe) using 384px + Smart Crop + Stratified splits
+# Teacher C Configuration - Europa Norte/East (no SW)
 
 model:
   name: "vit_base_patch16_384"
   pretrained: true
-  # Opcional: reutiliza el mejor checkpoint global para acelerar convergencia
   init_from: "./checkpoints/teacher_global/best_model.pt"
 
 training:
@@ -18,14 +16,12 @@ training:
   label_smoothing: 0.1
 
 data:
-  # Regional dataset (filtrado + estratificado)
-  train_jsonl: "./data/dataset_eu_sw_train_stratified.jsonl"
-  val_jsonl: "./data/dataset_eu_sw_val_stratified.jsonl"
+  train_jsonl: "./data/dataset_eu_core_train_stratified.jsonl"
+  val_jsonl: "./data/dataset_eu_core_val_stratified.jsonl"
   image_size: 384
   cache_size_gb: 220
   num_workers: 4
   smart_crop: true
-  region_filter: "EU_SW"
 
 augmentation:
   train:
@@ -74,5 +70,5 @@ device:
   mixed_precision: true
 
 output:
-  checkpoint_dir: "./checkpoints/teacher_regional"
-  results_dir: "./results/teacher_regional_v1"
+  checkpoint_dir: "./checkpoints/teacher_eu_core"
+  results_dir: "./results/teacher_eu_core_v1"

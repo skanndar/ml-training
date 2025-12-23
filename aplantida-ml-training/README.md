@@ -2,7 +2,18 @@
 
 **Objetivo:** Entrenar un modelo de plantas fine-tuneado con distillation para desplegar en TensorFlow.js (offline, PWA).
 
-**Status:** Diseño completo | Listo para ejecución
+**Status:** Fase 0 completada (17 dic 2025) | Fase 1 ejecutada con mejoras activas (20 dic 2025)
+
+---
+
+## Estado actual (diciembre 2025)
+
+- **Fase 0 cerrada:** Pipeline de streaming con caché LRU funcionando, export completo desde Mongo y splits 80/10/10 sin leakage (`ml-training/PHASE_0_COMPLETE.md`). Resultado: 171,381 imágenes únicas, 7,120 clases en train y 92.4% de licencias permisivas.
+- **Fase 1 ejecutada:** El teacher global ViT-Base (224px) completó 15 épocas (`TRAINING_ANALYSIS_EPOCH15.md`) con overfitting severo por el split aleatorio, demostrando que el código/métricas funcionan end-to-end.
+- **Refactors posteriores:** El 20 de diciembre (`SUMMARY_SESSION_20251220.md`) se re-exportaron **741,533 imágenes** (365k iNat + 376k legacy), se creó `scripts/create_stratified_split.py` (train 93,761 / val 12,639 / test 11,726 con 100% de solapamiento), se validó el Smart Rate Limiting y se añadió Smart Crop por saliencia + resolución 384px (`IMPROVEMENTS_384_SMARTCROP.md`).
+- **Config actual:** `config/teacher_global.yaml` usa `vit_base_patch16_384`, batch size 4, cache 220GB y `smart_crop: true`. Ejecuta `./START_TRAINING_384.sh` para la nueva corrida sobre los JSONL estratificados.
+- **Pipeline regional listo:** `scripts/create_stratified_split.py --region EU_SW` + `config/teacher_regional.yaml` replican las mismas mejoras (384px + smart crop) y `./START_TRAINING_REGIONAL_384.sh` automatiza el entrenamiento del teacher B.
+- **Siguientes hitos:** Rerun del teacher global con las mejoras anteriores, cerrar el teacher regional y entrenar el **Teacher C (Europa Norte/East)** usando `scripts/create_stratified_split.py --region EU_NORTH,EU_EAST` + `./START_TRAINING_EU_CORE_384.sh` para cubrir el resto del continente.
 
 ---
 
@@ -162,9 +173,10 @@ Fine-tuning no elimina restricciones originales.
 
 ## Próximos pasos
 
-1. Valida el formato de datos en Mongo (DATOS_PIPELINE.md § 0)
-2. Prepara hardware (GPU, almacenamiento)
-3. Clona repo + crea venv Python (ESTRUCTURA_SCRIPTS.md)
-4. Comienza Fase 0 (auditoría dataset)
+1. Genera/valida los JSONL estratificados (`scripts/create_stratified_split.py`) y revisa que el caché contenga todas las URLs del split.
+2. Lanza `./START_TRAINING_384.sh` (o `python scripts/train_teacher.py --config config/teacher_global.yaml`) para la nueva corrida con smart crop + 384px.
+3. Monitorea `training_384_smartcrop.log`, TensorBoard (`checkpoints/teacher_global/logs`) y documenta métricas/insights en `results/teacher_global_v1/`.
+4. Con el teacher global estable, inicia la Fase 2 (teacher regional) reutilizando los mismos filtros/licencias.
+5. Repite `scripts/create_stratified_split.py --region EU_NORTH,EU_EAST --output-prefix ./data/dataset_eu_core` y lanza `./START_TRAINING_EU_CORE_384.sh` para entrenar el Teacher C (resto de Europa) antes de pasar a distillation.
 
 ¿Preguntas? Cada doc tiene sección "Troubleshooting".

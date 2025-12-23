@@ -1,10 +1,20 @@
 # Plan de Entrenamiento: 7 Fases
 
+> Estado dic 2025: Fase 0 completada (ver `../PHASE_0_COMPLETE.md`). Fase 1 ejecutada de punta a punta y actualmente en re-run con mejoras 384px + smart crop (ver `../TRAINING_ANALYSIS_EPOCH15.md` y `../SUMMARY_SESSION_20251220.md`).
+
 ## Fase 0: Auditoría Dataset + Baseline
 
 **Objetivo:** Validar datos y establecer métricas base.
 
 **Duración esperada:** 1-2 días
+
+**Estado (17 dic 2025):** ✅ Completada. Se ejecutó `scripts/export_dataset.py` con filtrado de licencias, `scripts/split_dataset.py` y se documentó en `ml-training/PHASE_0_COMPLETE.md`.
+
+- 171,381 imágenes únicas (de 340,749 exportadas inicialmente)
+- Train/Val/Test: 136,312 / 17,372 / 17,697 registros
+- 7,120 clases en train, 4,147 en val
+- 92.4% de las imágenes de train son licencias permisivas (CC0/CC-BY/CC-BY-SA)
+- Outputs: `data/dataset_{raw,train,val,test}.jsonl`, `data/dataset_splits.jsonl`, `data/dataset_eu_sw_train.jsonl` (subset base) + `data/dataset_eu_sw_*_stratified.jsonl` (ver Fase 2)
 
 ### 0.1 - Ejecutar
 
@@ -50,56 +60,110 @@ python scripts/baseline.py \
 
 **Duración esperada:** 2-3 días (depende GPU)
 
+### 1.0 - Preparar split estratificado (nuevo 20 dic 2025)
+
+`scripts/create_stratified_split.py` recorre `data/dataset_raw.jsonl`, filtra solo imágenes cacheadas y reparte cada clase de forma estratificada (1 imagen → solo train, 2 imágenes → 1/1, 3+ → 80/10/10). Este proceso genera `data/dataset_{train,val,test}_stratified.jsonl` y garantiza que todas las clases de validation aparezcan en train.
+
+```bash
+cd ~/ml-training
+source venv/bin/activate
+python scripts/create_stratified_split.py
+```
+
+**Resultados esperados:**
+
+- Train: 93,761 imágenes | 5,914 clases
+- Val: 12,639 imágenes | 4,410 clases
+- Test: 11,726 imágenes
+- Overlap train-val: 100% (0 clases exclusivas en val)
+
+> Referencia: `SUMMARY_SESSION_20251220.md`
+
 ### 1.1 - Configuración
 
 ```yaml
 # config/teacher_global.yaml
 
 model:
-  name: "vit_base_patch16_224"
+  name: "vit_base_patch16_384"  # Cambiado desde 224px
   pretrained: true
-  num_classes: 9000  # Ajustar según Mongo
 
 training:
-  learning_rate: 1e-5
-  batch_size: 64
-  epochs: 15
+  learning_rate: 3.0e-5
+  batch_size: 4  # Ajustado a GPU 4GB/384px
+  epochs: 10
   warmup_epochs: 2
-  weight_decay: 0.01
+  optimizer: adamw
+  weight_decay: 0.05
+  gradient_clip: 1.0
+  label_smoothing: 0.1
 
 data:
-  train_jsonl: "./data/dataset_splits.jsonl"
-  split_name: "train"
-  augmentation: "aggressive"  # Ver DATOS_PIPELINE.md
-  image_size: 224
+  train_jsonl: "./data/dataset_train_stratified.jsonl"
+  val_jsonl: "./data/dataset_val_stratified.jsonl"
+  image_size: 384
+  cache_size_gb: 220
+  num_workers: 6
+  smart_crop: true  # Saliency crop antes de augmentations
+
+augmentation:
+  train:
+    resize: 448
+    crop: 384
+    horizontal_flip: 0.5
+    vertical_flip: 0.2
+    rotation: 20
+    color_jitter:
+      brightness: 0.3
+      contrast: 0.3
+      saturation: 0.3
+      hue: 0.15
+    blur: 0.1
+    normalize:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+  val:
+    resize: 448
+    center_crop: 384
+    normalize:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
 
 regularization:
-  dropout: 0.2
-  mixup_alpha: 0.8
-  cutmix_alpha: 0.8
+  dropout: 0.3
+  mixup_alpha: 1.0
+  cutmix_alpha: 1.2
+  mixup_prob: 0.5
 
 callbacks:
   early_stopping: true
   early_stopping_patience: 3
+  early_stopping_metric: top1_acc
   save_best: true
+  save_checkpoint_every: 1
   checkpoint_dir: "./checkpoints/teacher_global"
 ```
 
 ### 1.2 - Ejecutar entrenamiento
 
 ```bash
-# Entrenar
+# Validar splits y lanzar 384px + smart crop
+cd ~/ml-training
+./START_TRAINING_384.sh
+
+# El script:
+# - Activa venv y asegura `dataset_*_stratified.jsonl`
+# - Respalda checkpoints incompatibles (224px)
+# - Lanza training con nohup → `training_384_smartcrop.log`
+
+# Ejecución manual (opcional)
 python scripts/train_teacher.py \
   --config config/teacher_global.yaml \
-  --output_dir ./results/teacher_global_v1 \
   --seed 42
 
-# Este comando:
-# - Carga dataset con splits
-# - Fine-tunea ViT por 15 épocas
-# - Guarda checkpoints cada epoch
-# - Log: loss, top1 acc, top5 acc en train/val
-# - Output: teacher_global_v1.pt + teacher_global_v1_metrics.json
+# Monitoreo recomendado
+tail -f training_384_smartcrop.log | grep -E 'Epoch|loss|top1'
+tensorboard --logdir ./checkpoints/teacher_global/logs --port 6006
 ```
 
 ### 1.3 - Evaluación
@@ -107,20 +171,17 @@ python scripts/train_teacher.py \
 ```bash
 python scripts/eval_teacher.py \
   --model ./results/teacher_global_v1/best_model.pt \
-  --test_jsonl ./data/dataset_splits.jsonl \
+  --test_jsonl ./data/dataset_test_stratified.jsonl \
   --split_name "test" \
-  --output ./results/teacher_global_v1/eval_test.json
+  --output ./results/teacher_global_v1/eval_test_stratified.json
 
 # Output esperado:
 # {
 #   "top1_accuracy": 0.72,
 #   "top5_accuracy": 0.88,
 #   "loss": 0.98,
-#   "per_region": {
-#     "EU_SW": 0.75,
-#     "EU": 0.70,
-#     ...
-#   }
+#   "per_region": { "EU_SW": 0.75, ... }
+#   "stratified": true
 # }
 ```
 
@@ -131,121 +192,239 @@ python scripts/eval_teacher.py \
 - [ ] Validation loss estable (sin overfitting severo)
 - [ ] Per-class recall > 60% (incluso para clases con <10 imágenes)
 
+> Nota (20 dic 2025): la corrida ViT-Base 224px completó 15 épocas con 98.6% Top-1 en train pero 0.03% en val (`TRAINING_ANALYSIS_EPOCH15.md`) por el split aleatorio. Con el split estratificado + 384px esperamos ver Top-1 val >5% en las primeras épocas y >15% al cierre de la corrida antes de continuar con el rollout global.
+
 ### 1.5 - Guardar logits (para distillation)
 
 ```bash
 python scripts/compute_teacher_logits.py \
   --model ./results/teacher_global_v1/best_model.pt \
-  --train_jsonl ./data/dataset_splits.jsonl \
+  --train_jsonl ./data/dataset_train_stratified.jsonl \
   --output ./data/teacher_global_logits_train.npz
 
 # Guarda: {
-#   "logits": (850000, 9000),  # train set predictions
-#   "indices": (850000,),       # plant IDs
-#   "confidences": (850000,)
+#   "logits": (93761, 5914),  # predicciones sobre train estratificado
+#   "indices": (93761,),      # plant IDs
+#   "confidences": (93761,)
 # }
 ```
+
+### 1.6 - Estado actual (20 dic 2025)
+
+- ✅ **Corrida ViT-Base 224px completada** (15 épocas). Resultado: overfitting severo por 186 clases exclusivas en validation y 27.7% de clases con solo 1 imagen (`TRAINING_ANALYSIS_EPOCH15.md`).
+- ✅ **Dataset actualizado** con 741,533 imágenes (365k iNat + 376k legacy) y caché validado (`SUMMARY_SESSION_20251220.md`).
+- ✅ **Stratified split** (`scripts/create_stratified_split.py`) garantiza overlap 100% train/val y tamaños 93,761 / 12,639 / 11,726.
+- ✅ **Mejoras de entrenamiento**: smart crop basado en saliencia (`models/smart_crop.py`), resolución 384px, regularización + mixup/cutmix, y script `START_TRAINING_384.sh` para automatizar backups + launch (`IMPROVEMENTS_384_SMARTCROP.md`).
+- 🔄 **Acción actual**: re-entrenar el teacher global con la nueva config y monitorizar `training_384_smartcrop.log`/TensorBoard. No pasar a Fase 2 hasta contar con métricas de validación estables.
 
 ---
 
 ## Fase 2: Entrenar Teacher Regional (SW Europa)
 
-**Objetivo:** Fine-tune en subset de SW Europa para mejorar precision local.
+**Objetivo:** Replicar las mejoras de Fase 1 (split estratificado + smart crop + 384px + regularización agresiva) enfocadas a EU_SW para ganar +15pp en precisión local.
 
-**Duración esperada:** 1-2 días
+**Duración esperada:** 1-2 días (dataset < 25k imágenes → epochs ~35-40 min en GPU 8GB).
 
-### 2.1 - Preparar subset regional
+### 2.0 - Generar split estratificado EU_SW
 
-```python
-# scripts/prepare_regional_dataset.py
+Reutiliza `scripts/create_stratified_split.py` con `--region EU_SW` para garantizar que TODAS las clases que aparecen en validation también existen en train.
 
-import pandas as pd
+```bash
+cd ~/ml-training
+source venv/bin/activate
 
-df = pd.read_json("./data/dataset_splits.jsonl", lines=True)
+python scripts/create_stratified_split.py \
+  --input ./data/dataset_raw.jsonl \
+  --output-prefix ./data/dataset_eu_sw \
+  --region EU_SW \
+  --cache-dir ./data/image_cache  # o el path definido en config/paths.yaml
 
-# Filtrar región SW Europa
-regional_df = df[(df["region"] == "EU_SW") & (df["split"] == "train")]
-
-print(f"Regional samples: {len(regional_df)}")
-print(f"Regional species: {len(regional_df['latin_name'].unique())}")
-
-# Guardar
-regional_df.to_json("./data/dataset_eu_sw_train.jsonl", orient="records", lines=True)
-
-# Stats
-print(regional_df["latin_name"].value_counts().head(20))
+# Salida:
+#   dataset_eu_sw_train_stratified.jsonl
+#   dataset_eu_sw_val_stratified.jsonl
+#   dataset_eu_sw_test_stratified.jsonl
+#   dataset_eu_sw_stratified_stats.json (resumen de clases)
 ```
 
-### 2.2 - Entrenar teacher regional
+> `SUMMARY_SESSION_20251220.md` documenta tamaños esperados (train ≈ 18k, val ≈ 2.4k, test ≈ 2.3k, todas cacheadas con smart rate limiting activo).
+
+### 2.1 - Configuración 384px + Smart Crop
 
 ```yaml
-# config/teacher_regional.yaml
+# config/teacher_regional.yaml (resumen)
 
 model:
-  name: "vit_base_patch16_224"
-  pretrained: true  # Empezar desde ImageNet
-  num_classes: 9000  # Mismas clases
+  name: "vit_base_patch16_384"
+  pretrained: true
+  init_from: "./checkpoints/teacher_global/best_model.pt"  # opcional pero recomendado
 
 training:
-  learning_rate: 5e-6  # Más bajo (dataset más pequeño)
-  batch_size: 32
-  epochs: 20
+  learning_rate: 2.0e-5
+  batch_size: 4
+  epochs: 12
   warmup_epochs: 2
+  optimizer: adamw
+  weight_decay: 0.05
+  gradient_clip: 1.0
+  label_smoothing: 0.1
 
 data:
-  train_jsonl: "./data/dataset_eu_sw_train.jsonl"
-  augmentation: "moderate"
-  image_size: 224
+  train_jsonl: "./data/dataset_eu_sw_train_stratified.jsonl"
+  val_jsonl: "./data/dataset_eu_sw_val_stratified.jsonl"
+  image_size: 384
+  cache_size_gb: 220
+  smart_crop: true
+  region_filter: "EU_SW"
+
+augmentation:
+  train:
+    resize: 448
+    crop: 384
+    horizontal_flip: 0.5
+    vertical_flip: 0.2
+    rotation: 20
+    color_jitter: { brightness: 0.3, contrast: 0.3, saturation: 0.3, hue: 0.15 }
+    blur: 0.1
+    normalize:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
+  val:
+    resize: 448
+    center_crop: 384
+    normalize:
+      mean: [0.485, 0.456, 0.406]
+      std: [0.229, 0.224, 0.225]
 
 regularization:
   dropout: 0.3
-  weight_decay: 0.02
-  early_stopping_patience: 5
+  mixup_alpha: 1.0
+  cutmix_alpha: 1.2
+  mixup_prob: 0.5
+
+callbacks:
+  early_stopping_metric: top1_acc
+  save_checkpoint_every: 1
+  save_best: true
 ```
 
+### 2.2 - Lanzar entrenamiento con helper script
+
 ```bash
-python scripts/train_teacher.py \
-  --config config/teacher_regional.yaml \
-  --output_dir ./results/teacher_regional_eu_sw_v1 \
-  --seed 42
+cd ~/ml-training
+./START_TRAINING_REGIONAL_384.sh
+
+# El helper:
+# - Obtiene cache_dir de config/paths.yaml
+# - Ejecuta create_stratified_split.py --region EU_SW si faltan JSONL
+# - Respalda checkpoints previos
+# - Lanza train_teacher.py --config config/teacher_regional.yaml (nohup)
+# - Log: training_regional_384.log / TensorBoard: checkpoints/teacher_regional/logs
 ```
 
-### 2.3 - Evaluar por región
+Monitorea con:
 
 ```bash
-python scripts/eval_by_region.py \
-  --model ./results/teacher_regional_eu_sw_v1/best_model.pt \
-  --test_jsonl ./data/dataset_splits.jsonl \
+tail -f training_regional_384.log | grep -E 'Epoch|loss|top'
+tensorboard --logdir ./checkpoints/teacher_regional/logs --port 6007
+```
+
+### 2.3 - Evaluación EU_SW
+
+```bash
+python scripts/eval_teacher.py \
+  --model ./results/teacher_regional_v1/best_model.pt \
+  --test_jsonl ./data/dataset_eu_sw_test_stratified.jsonl \
   --split_name "test" \
-  --output ./results/teacher_regional_v1/eval_by_region.json
+  --output ./results/teacher_regional_v1/eval_test_eu_sw.json
 
-# Output esperado:
-# {
-#   "EU_SW": {
-#     "top1": 0.82,  # Mejor que global!
-#     "top5": 0.92
-#   },
-#   "EU": {
-#     "top1": 0.68,  # Peor en otras regiones
-#     "top5": 0.85
-#   }
-# }
+python scripts/eval_by_region.py \
+  --model ./results/teacher_regional_v1/best_model.pt \
+  --test_jsonl ./data/dataset_test_stratified.jsonl \
+  --output ./results/teacher_regional_v1/eval_by_region.json
 ```
 
 ### 2.4 - Criterios de éxito
 
-- [ ] Top-1 EU_SW >= 80% (regional boost)
-- [ ] Top-1 test set global >= 65% (puede bajar respecto teacher global)
-- [ ] Validación loss convergida
+- [ ] Top-1 EU_SW >= 80% (meta principal del teacher regional)
+- [ ] Gap vs teacher global en EU_SW ≥ +10 pp
+- [ ] Loss/Top-1 de val estable (sin colapso como en Fase 1 gracias al split estratificado)
 
 ### 2.5 - Guardar logits regionales
 
 ```bash
 python scripts/compute_teacher_logits.py \
-  --model ./results/teacher_regional_eu_sw_v1/best_model.pt \
-  --train_jsonl ./data/dataset_splits.jsonl \
+  --model ./results/teacher_regional_v1/best_model.pt \
+  --train_jsonl ./data/dataset_eu_sw_train_stratified.jsonl \
   --output ./data/teacher_regional_logits_train.npz
 ```
+
+> **Estado (22 dic, 21:15):** el entrenamiento EU_SW va por la época 4 con `Val Top-1 ≈ 89.9%`. `best_model.pt` y `last_checkpoint.pt` ya están generados, por lo que puedes parar cuando quieras y ejecutar inmediatamente los comandos de evaluación/logits anteriores.
+
+
+## Fase 2b: Teacher C (Europa Norte/East)
+
+**Objetivo:** cubrir las regiones EU_NORTH + EU_EAST para complementar al teacher SW.
+
+### 2b.0 - Generar split EU_CORE
+
+```bash
+cd ~/ml-training
+source venv/bin/activate
+
+python scripts/create_stratified_split.py \
+  --input ./data/dataset_raw.jsonl \
+  --output-prefix ./data/dataset_eu_core \
+  --region EU_NORTH,EU_EAST \
+  --cache-dir ./data/image_cache
+
+# Salida: dataset_eu_core_{train,val,test}_stratified.jsonl + dataset_eu_core_stratified_stats.json
+```
+
+### 2b.1 - Configuración
+
+```yaml
+# config/teacher_eu_core.yaml
+
+model:
+  name: "vit_base_patch16_384"
+  pretrained: true
+  init_from: "./checkpoints/teacher_global/best_model.pt"
+
+data:
+  train_jsonl: "./data/dataset_eu_core_train_stratified.jsonl"
+  val_jsonl: "./data/dataset_eu_core_val_stratified.jsonl"
+  image_size: 384
+  smart_crop: true
+  cache_size_gb: 220
+```
+
+### 2b.2 - Lanzar entrenamiento
+
+```bash
+cd ~/ml-training
+./START_TRAINING_EU_CORE_384.sh
+
+# Monitoreo
+tail -f training_eu_core_384.log | grep -E 'Epoch|loss|top'
+tensorboard --logdir ./checkpoints/teacher_eu_core/logs --port 6008
+```
+
+> **Estado (22 dic):** Teacher C (EU_CORE) en marcha con la misma configuración; si ves que las mejoras se estabilizan tras la época 4‑5, reduce `training.epochs` a 6‑8 para ahorrar tiempo.
+
+### 2b.3 - Evaluación y logits
+
+```bash
+python scripts/eval_teacher.py \
+  --model ./results/teacher_eu_core_v1/best_model.pt \
+  --test_jsonl ./data/dataset_eu_core_test_stratified.jsonl \
+  --output ./results/teacher_eu_core_v1/eval_test.json
+
+python scripts/compute_teacher_logits.py \
+  --model ./results/teacher_eu_core_v1/best_model.pt \
+  --train_jsonl ./data/dataset_eu_core_train_stratified.jsonl \
+  --output ./data/teacher_eu_core_logits_train.npz
+```
+
 
 ---
 
@@ -324,10 +503,12 @@ def get_soft_labels_batch(batch_indices):
 
 ### 3.3 - Criterios de éxito
 
-- [ ] Soft labels shape correcto: (850k, 9000)
-- [ ] Soft probs suman a 1.0
-- [ ] Student architecture peso < 20MB
-- [ ] Checkpoints guardables
+- [x] Soft labels shape correcto: (≈58k, 8.6k clases, unión teachers)
+- [x] Soft probs suman a 1.0 (tras combinación con pesos 0.4/0.4/0.2)
+- [ ] Student architecture peso < 20MB (pendiente tras fine-tuning/export)
+- [x] Checkpoints guardables (`checkpoints/student_distill/best_model.pt`)
+
+> **Estado (23 dic 2025):** distillation completa (20 épocas) con `soft_labels_combined_train.npz` (58,280 muestras, 8,587 clases). Resultado: `Val Top-1 = 78.13%`, `Top-5 = 84.44%`, `Loss = 7.23` en la época 20. Curva saturó a partir de la época 15, por lo que los parámetros actuales (alpha 0.7 / beta 0.3, MobileNetV2 224px) son suficientes para pasar a fine-tuning.
 
 ---
 
@@ -356,7 +537,7 @@ python scripts/train_student_distill.py \
 
 ```bash
 python scripts/train_student_finetune.py \
-  --checkpoint ./results/student_distill_v1/epoch_10/best_model.pt \
+  --checkpoint ./checkpoints/student_distill/best_model.pt \
   --config config/student.yaml \
   --mode finetuning \
   --epochs_phase2 10 \
@@ -371,10 +552,12 @@ python scripts/train_student_finetune.py \
 
 ### 4.3 - Criterios de éxito
 
-- [ ] Validation accuracy >= 70% (cercano a teachers)
-- [ ] Validation loss convergida (no sube)
-- [ ] Training accuracy > 80% (el modelo aprende)
-- [ ] Checkpoints guardados cada epoch
+- [x] Validation accuracy >= 70% (Val Top-1 = 78.13%)
+- [x] Validation loss convergida (se estabiliza en ~7.2)
+- [x] Training accuracy > 80% (Top-1 > 94%)
+- [x] Checkpoints guardados cada epoch
+
+> **Siguiente paso (23 dic 2025):** usar el checkpoint del student distillado (`checkpoints/student_distill/best_model.pt`, Val Top-1 78%) como punto de partida para el script `train_student_finetune.py` (10 épocas adicionales con CE pura y augmentaciones agresivas) para exprimir unos puntos extra antes de calibración/export.
 
 ### 4.4 - Monitorizar entrenamiento
 

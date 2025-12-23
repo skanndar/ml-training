@@ -3,6 +3,17 @@
 **Creado:** 17 de diciembre de 2024
 **Versión:** 1.0
 **Ubicación:** `/home/skanndar/SynologyDrive/local/rehabProyectos/docs/aplantida-ml-training/`
+**Actualizado:** 20 de diciembre de 2025 (Fase 1 completada + mejoras en curso)
+
+---
+
+## Estado actual (diciembre 2025)
+
+- **Fase 0 cerrada (17 dic)** → Pipeline de streaming validado, export + splits 80/10/10 listos y 92.4% de datos permisivos en train (`ml-training/PHASE_0_COMPLETE.md`).
+- **Fase 1 ejecutada (20 dic)** → ViT-Base (224px) completó 15 épocas con 98.6% Top-1 train / 0.03% val (overfitting por splits aleatorios). El código de entrenamiento + métricas funcionó end-to-end (`TRAINING_ANALYSIS_EPOCH15.md`).
+- **Mejoras aplicadas** → Nueva exportación desde Mongo con 741,533 imágenes, script `create_stratified_split.py` (train 93,761 / val 12,639 / test 11,726, solapamiento 100%), Smart Rate Limiting probado y Smart Crop + resolución 384px integrados (`SUMMARY_SESSION_20251220.md`, `IMPROVEMENTS_384_SMARTCROP.md`).
+- **Infra lista** → `config/teacher_global.yaml` actualizado, `START_TRAINING_384.sh` automatiza backups + launch y `training_384_smartcrop.log` centraliza métricas; TensorBoard operativo en `checkpoints/teacher_global/logs`.
+- **Siguientes pasos** → Re-ejecutar Fase 1 con la nueva config, documentar métricas estratificadas, y continuar con teacher regional (Fase 2) una vez estabilice la validación.
 
 ---
 
@@ -147,7 +158,7 @@ training:
 | Riesgo | Probabilidad | Cómo evitarlo |
 |--------|-------------|--------------|
 | URL images broken | Media | Fase 0 valida todas (tasa fallo < 5% ok) |
-| Overfitting en clases mayores | Alta | Stratified split + sampling (§ DATOS) |
+| Overfitting en clases mayores | Alta | ✅ Split estratificado (`scripts/create_stratified_split.py`) + smart crop 384px + mixup/cutmix |
 | GPU memory overflow | Media | Batch chunking + gradient accumulation |
 | Accuracy baja | Baja | Ensemble design + distillation asegura 70%+ |
 | License compliance fail | Media | Checklist automático (license_checker.py) |

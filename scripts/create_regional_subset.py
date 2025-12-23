@@ -2,8 +2,8 @@
 """
 create_regional_subset.py - Create Regional Dataset Subset
 
-Filters the train dataset by region for regional teacher training.
-Used for teacher_regional model (EU_SW focus).
+Filters the train dataset by region for exploratory analysis o para generar un subset simple.
+Para splits estratificados (mismas mitigaciones de Fase 1) usa `scripts/create_stratified_split.py --region <REGION>`.
 
 Usage:
     python scripts/create_regional_subset.py --region EU_SW --input ./data/dataset_train.jsonl --output ./data/dataset_eu_sw_train.jsonl

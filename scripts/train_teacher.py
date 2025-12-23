@@ -189,7 +189,25 @@ class Trainer:
         if init_from and Path(init_from).exists():
             logger.info(f"Loading weights from: {init_from}")
             checkpoint = torch.load(init_from, map_location='cpu')
-            model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+            state_dict = checkpoint.get('model_state_dict', checkpoint)
+
+            # Remove classifier heads if shapes mismatch (e.g., regional model has fewer clases)
+            classifier_keys = [
+                'head.weight', 'head.bias',
+                'fc.weight', 'fc.bias',
+                'classifier.weight', 'classifier.bias'
+            ]
+            model_state = model.state_dict()
+            for key in classifier_keys:
+                if key in state_dict and key in model_state:
+                    if state_dict[key].shape != model_state[key].shape:
+                        logger.warning(
+                            f"Skipping pretrained layer '{key}' due to shape mismatch: "
+                            f"{state_dict[key].shape} vs {model_state[key].shape}"
+                        )
+                        state_dict.pop(key)
+
+            model.load_state_dict(state_dict, strict=False)
 
         model = model.to(self.device)
 

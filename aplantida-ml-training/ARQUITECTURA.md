@@ -25,14 +25,18 @@
     Teacher A: ViT-Base (ImageNet)
     └─→ train_teacher_global.py
         (fine-tune global, eval todas las especies)
+        (split estratificado + smart crop 384px)
          ↓
     Teacher B: Regional SW Europa
     └─→ train_teacher_regional.py
-        (fine-tune con GBIF + iNat SW Europe)
+        (fine-tune con EU_SW estratificado + smart crop 384px)
+        (usa create_stratified_split.py --region EU_SW)
         (eval España específicamente)
          ↓
     Teacher C: Opcional (BioCLIP o similar)
     └─→ train_teacher_optional.py
+        (ej: EU_NORTH + EU_EAST vía create_stratified_split.py --region EU_NORTH,EU_EAST)
+        (balancea especies centro/norte de Europa)
 
     Outputs: 3x checkpoint + logits precomputados
 
@@ -194,6 +198,27 @@ async function recognizeWithStudent(imageElement) {
   return results;
 }
 ```
+
+### 3. Splits estratificados (global / EU_SW)
+
+```bash
+# Global
+python scripts/create_stratified_split.py \
+  --input ./data/dataset_raw.jsonl \
+  --output-prefix ./data/dataset \
+  --cache-dir ./data/image_cache
+
+# Regional SW Europa (mismas mitigaciones contra overfitting)
+python scripts/create_stratified_split.py \
+  --input ./data/dataset_raw.jsonl \
+  --output-prefix ./data/dataset_eu_sw \
+  --region EU_SW \
+  --cache-dir ./data/image_cache
+
+# Salida: *_train/val/test_stratified.jsonl + *_stratified_stats.json
+# Consumidos por train_teacher_global.py y train_teacher_regional.py
+```
+
 
 ---
 

@@ -1,0 +1,6 @@
+FROM tensorflow/tensorflow:2.13.1
+
+# Install tensorflowjs converter
+RUN pip install --no-cache-dir "tensorflowjs==4.22.0"
+
+WORKDIR /workspace

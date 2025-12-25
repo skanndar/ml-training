@@ -81,6 +81,8 @@
     comparar_vs_ensemble.py
     └─ ¿Student ≈ Teachers? (KL divergence, accuracy gap)
 
+> **Estado dic 2025:** `scripts/temperature_scaling.py` + `calibrate_model.py` dejaron el student con ECE=0.040 (temperatura 2.0) y un umbral recomendado de 0.66 (95% accuracy, 78.9% coverage) registrado en `results/student_finetune_v1/threshold_analysis_temp.json`.
+
 ┌─────────────────────────────────────────────────────────────────┐
 │            FASE 6: OPTIMIZACIÓN & EXPORT TF.JS                   │
 └─────────────────────────────────────────────────────────────────┘
@@ -100,6 +102,8 @@
             ├─ group1-shard1of3.bin
             ├─ group1-shard2of3.bin
             └─ group1-shard3of3.bin
+
+> **Nota export actual:** ya existe el checkpoint FP16 (`results/student_finetune_v1/model_fp16.pt`), su ONNX y el SavedModel (`dist/models/student_v1_fp16_manual/saved_model`). La conversión a TF.js debe ejecutarse en un venv con TensorFlow 2.13.x + `tensorflow_decision_forests` 1.5.0 o usando el CLI de Node `@tensorflow/tfjs-converter` para evitar conflictos de dependencias.
 
 ┌─────────────────────────────────────────────────────────────────┐
 │         FASE 7: DESPLIEGUE PWA (FRONT-END)                      │

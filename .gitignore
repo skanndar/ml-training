@@ -50,6 +50,16 @@ logs/
 *.swp
 *.swo
 
+# Node projects
+node_modules/
+
+# Python virtualenvs
+tfjs-env/
+
+# Large archives generated locally
+saved_model.zip
+student_v1_fp16.zip
+
 # OS
 .DS_Store
 Thumbs.db

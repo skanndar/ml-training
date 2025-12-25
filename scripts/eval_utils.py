@@ -8,6 +8,7 @@ from typing import Dict, Optional, Tuple
 
 import timm
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 
 # Ensure project root is on sys.path para poder importar `models`
@@ -16,6 +17,20 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from models.dataloader_factory import DataLoaderFactory
+
+
+class TemperatureScaledModel(nn.Module):
+    """Wraps a model to apply temperature scaling at inference time."""
+
+    def __init__(self, base_model: nn.Module, temperature: float):
+        super().__init__()
+        self.base_model = base_model
+        self.register_buffer('temperature', torch.tensor([temperature], dtype=torch.float32))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        logits = self.base_model(x)
+        temp = self.temperature.to(logits.device).clamp(min=1e-6)
+        return logits / temp
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +126,13 @@ def load_model_from_checkpoint(
         logger.warning(f"Unexpected keys: {missing.unexpected_keys}")
 
     model.to(device)
+
+    temperature = checkpoint.get('temperature')
+    if temperature is not None:
+        logger.info(f"Applying temperature scaling T={float(temperature):.4f}")
+        model = TemperatureScaledModel(model, float(temperature))
+        model.to(device)
+
     model.eval()
     return model
 

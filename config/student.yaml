@@ -68,6 +68,10 @@ output:
   finetune_checkpoint_dir: "./checkpoints/student_finetune"
   finetune_results_dir: "./results/student_finetune_v1"
 
+inference:
+  confidence_threshold: 0.62  # Optimized for offline-first PWA (94.5% accuracy, 80.1% coverage)
+  temperature: 2.0  # Applied during calibration (ECE=0.040)
+
 device:
   type: "cuda"
   mixed_precision: true

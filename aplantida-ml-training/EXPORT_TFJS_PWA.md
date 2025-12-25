@@ -47,9 +47,78 @@ python scripts/compare_quantization.py \
   --test_data test_images.npz
 ```
 
+### 1.4 - Estado actual (dic 2025)
+
+- Checkpoint FP16 generado con `scripts/quantize_model.py`: `results/student_finetune_v1/model_fp16.pt`.
+- `scripts/export_to_tfjs.py` produce `dist/models/student_v1_fp16_manual/student.onnx` + `saved_model/` (incluye `export_metadata.json`).
+- Validación PyTorch ↔ TensorFlow guardada en `results/student_finetune_v1/export_validation.json` (MAE 0.007 en 64 muestras).
+- **Calibración completada:** Temperature T=2.0, ECE=0.0401, threshold recomendado 0.62 (ver §1.5).
+
+### 1.5 - Decisión del Threshold de Confianza
+
+**Contexto:** El modelo calibrado produce probabilidades confiables (ECE=0.040), pero no todas las predicciones son suficientemente seguras para mostrarlas al usuario. Se implementa un threshold de confianza mínima; predicciones por debajo del threshold retornan "no concluyente" y activan el fallback a PlantNet API.
+
+**Análisis de Opciones:**
+
+| Threshold | Accuracy | Coverage | Implicación |
+|-----------|----------|----------|-------------|
+| **0.62 (elegido)** | **94.5%** | **80.1%** | De cada 100 predicciones, 80 son aceptadas con 94.5% de exactitud → 76 correctas |
+| 0.66 (conservador) | 95.0% | 78.9% | De cada 100 predicciones, 79 son aceptadas con 95.0% de exactitud → 75 correctas |
+
+**Decisión:** **Threshold 0.62**
+
+**Justificación:**
+
+1. **Caso de uso offline-first:** La PWA se usa en zonas rurales sin Internet confiable. Cada "no concluyente" requiere conexión a PlantNet API. Reducir la tasa de "no concluyente" del 21.1% al 19.9% (ganancia de 1.2%) mejora significativamente la UX en modo offline.
+
+2. **Trade-off favorable:** La diferencia de accuracy (0.5%) es imperceptible para usuarios, pero la ganancia de cobertura es tangible. En términos absolutos: con 0.62 obtienes **76 predicciones correctas de 100** vs 75 con 0.66.
+
+3. **Calibración excelente:** Con ECE=0.040, cuando el modelo predice 62% de confianza, realmente es ~62% preciso. El threshold no es arbitrario, está respaldado por métricas de calibración.
+
+4. **Ajustable en producción:** El threshold se puede ajustar dinámicamente según feedback de usuarios. Si la tasa de falsos positivos es inaceptable, se puede subir a 0.66 con una actualización del Service Worker.
+
+**Configuración en código:**
+
+```javascript
+// aplantidaFront/src/components/PlantRecognition/index.js
+const CONFIDENCE_THRESHOLD = 0.62;
+
+// En export_metadata.json
+"threshold": {
+  "value": 0.62,
+  "accuracy": 0.945,
+  "coverage": 0.801,
+  "rationale": "Optimized for offline-first PWA usage in rural areas"
+}
+```
+
+**Plan de monitoreo:**
+
+- Registrar todas las predicciones con: `{confidence, predicted_species, user_feedback}`
+- Revisar mensualmente:
+  - Si accuracy real < 94% → subir threshold a 0.66
+  - Si tasa de "no concluyente" > 25% → bajar threshold a 0.60
+  - Si usuarios en zonas urbanas reportan baja precisión → implementar A/B testing con ambos thresholds
+
+**Referencia:** Ver análisis completo en `results/student_finetune_v1/threshold_analysis_temp.json`
+
 ---
 
 ## Parte 2: Export a SavedModel (TensorFlow format)
+
+> Usa `scripts/export_to_tfjs.py` para automatizar PyTorch → ONNX → SavedModel antes de convertir a TF.js.
+
+```bash
+./venv/bin/python scripts/export_to_tfjs.py \
+  --config config/student.yaml \
+  --model results/student_finetune_v1/model_fp16.pt \
+  --class-mapping ./data/class_mapping.json \
+  --output-dir ./dist/models/student_v1_fp16_manual \
+  --quantization float16 \
+  --force
+```
+
+Genera: `student.onnx`, `saved_model/`, `export_metadata.json` y, si las dependencias son compatibles, ejecuta `tensorflowjs_converter` automáticamente.
 
 ### 2.1 - PyTorch → SavedModel
 
@@ -141,6 +210,12 @@ def pytorch_to_tfjs(
 ---
 
 ## Parte 3: Conversión a TF.js
+
+### 3.0 - Scripts disponibles
+
+- `scripts/export_to_tfjs.py`: corre PyTorch → ONNX → SavedModel + (opcional) converter.
+- `scripts/validate_tfjs_export.py`: asegura que el SavedModel mantiene las probabilidades vs PyTorch antes de subirlo a TF.js.
+- Si el converter falla por dependencias, crea un venv exclusivo para TF 2.13.x o usa el CLI de Node (`npx @tensorflow/tfjs-converter`).
 
 ### 3.1 - Comandos de conversión
 
@@ -250,6 +325,21 @@ testModel();
         print("✗ Revisar export (correlation too low)")
 ```
 
+### 3.5 - Compatibilidad del converter
+
+- `tensorflowjs_converter` (Python) requiere TensorFlow 2.13.x + `tensorflow_decision_forests 1.5.0` + `yggdrasil_decision_forests`. Con TF 2.15+ aparecen errores (`ModuleNotFoundError: yggdrasil_decision_forests`, `jax` incompatibles, etc.).
+- Recomendación: crea un venv limpio y ejecuta:
+  ```bash
+  python -m venv tfjs-env && source tfjs-env/bin/activate
+  pip install "tensorflow==2.13.1" tensorflowjs==4.22.0 \
+              tensorflow-decision-forests==1.5.0 ydf==0.13.0 \
+              tensorflow-hub==0.16.1 tensorflow-addons==0.21.0
+  tensorflowjs_converter --quantize_float16 '*' \
+    dist/models/student_v1_fp16_manual/saved_model \
+    dist/models/student_v1_fp16
+  ```
+- Alternativa: instalar `@tensorflow/tfjs-converter` global/Node (`npm install -g @tensorflow/tfjs-converter`) y ejecutar `tfjs-converter`/`npx` apuntando al SavedModel generado en Python.
+
 ---
 
 ## Parte 4: Integración con PWA
@@ -270,7 +360,7 @@ const MODEL_URLS = {
 };
 
 const CURRENT_MODEL_VERSION = 'v1.0';
-const CONFIDENCE_THRESHOLD = 0.75;
+const CONFIDENCE_THRESHOLD = 0.62;  // Calibrated threshold (94.5% accuracy, 80.1% coverage)
 
 // Mapping de class ID → plant info (cargado desde backend)
 let classLabelMap = null;

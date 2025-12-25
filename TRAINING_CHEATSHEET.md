@@ -549,6 +549,121 @@ tail -f training_384_smartcrop.log | grep -E 'Epoch|loss|top1'
 
 ---
 
+## 🧮 Fase 5: Calibración + "No concluyente"
+
+### 5.1 - Calcular métricas base
+```bash
+cd /home/skanndar/SynologyDrive/local/aplantida/ml-training
+./venv/bin/python scripts/calibrate_model.py \
+  --config config/student.yaml \
+  --model checkpoints/student_finetune/best_model.pt \
+  --val_jsonl ./data/dataset_val_stratified.jsonl \
+  --class-mapping ./data/class_mapping.json \
+  --output ./results/student_finetune_v1/calibration.json
+```
+
+### 5.2 - Temperature scaling automático
+```bash
+./venv/bin/python scripts/temperature_scaling.py \
+  --config config/student.yaml \
+  --model checkpoints/student_finetune/best_model.pt \
+  --val_jsonl ./data/dataset_val_stratified.jsonl \
+  --class-mapping ./data/class_mapping.json \
+  --output checkpoints/student_finetune/best_model_temp.pt \
+  --metrics-output ./results/student_finetune_v1/temperature_metrics.json \
+  --min-temperature 0.7 --max-temperature 2.0 --num-temperatures 20 \
+  --refine-steps 10 --refine-range 0.3
+```
+
+> Resultado actual (24 dic 2025): **T=2.0**, ECE ↓ 0.126 ➝ 0.040, MCE ↓ 0.55 ➝ 0.21.
+
+### 5.3 - Análisis de umbral "no concluyente"
+```bash
+./venv/bin/python scripts/find_confidence_threshold.py \
+  --predictions ./results/student_finetune_v1/calibration_temp.json \
+  --output ./results/student_finetune_v1/threshold_analysis_temp.json \
+  --target-accuracy 0.95 --min-threshold 0.5 --max-threshold 0.99 --step 0.02
+```
+
+- Umbral recomendado: **0.66** (accuracy 95.0%, coverage 78.9%).
+- Si se prioriza cobertura >=80%, usar 0.62 (accuracy 94.5%).
+
+### 5.4 - Inputs/Outputs clave
+- `checkpoints/student_finetune/best_model_temp.pt`: checkpoint listo para export.
+- `results/student_finetune_v1/calibration_temp.json`: ECE y bin stats.
+- `results/student_finetune_v1/threshold_analysis_temp.json`: curva accuracy/coverage.
+
+---
+
+## 📦 Fase 6: Cuantización + Export TF.js
+
+### 6.1 - Cuantizar a FP16
+```bash
+./venv/bin/python scripts/quantize_model.py \
+  --model checkpoints/student_finetune/best_model_temp.pt \
+  --output results/student_finetune_v1/model_fp16.pt \
+  --quantization_type fp16
+```
+
+### 6.2 - PyTorch → ONNX → SavedModel
+```bash
+./venv/bin/python scripts/export_to_tfjs.py \
+  --config config/student.yaml \
+  --model results/student_finetune_v1/model_fp16.pt \
+  --class-mapping ./data/class_mapping.json \
+  --output-dir ./dist/models/student_v1_fp16_manual \
+  --quantization float16 --force
+```
+
+Este comando genera `student.onnx`, `saved_model/` y `export_metadata.json`. Si el `tensorflowjs_converter` interno falla, usa un venv dedicado con TensorFlow 2.13.x (ver `EXPORT_TFJS_PWA.md` §3.5).
+
+### 6.3 - Validar PyTorch ↔ TensorFlow
+```bash
+./venv/bin/python scripts/validate_tfjs_export.py \
+  --config config/student.yaml \
+  --model results/student_finetune_v1/model_fp16.pt \
+  --saved-model dist/models/student_v1_fp16_manual/saved_model \
+  --val_jsonl ./data/dataset_val_stratified.jsonl \
+  --class-mapping ./data/class_mapping.json \
+  --num-samples 64 --batch-size 32 \
+  --output ./results/student_finetune_v1/export_validation.json
+```
+
+> Resultado actual: MAE 0.0072, max diff 0.045, 100% de coincidencia Top-1.
+
+### 6.4 - TF.js converter (entorno alterno)
+```bash
+python -m venv tfjs-env && source tfjs-env/bin/activate
+pip install "tensorflow==2.13.1" tensorflowjs==4.22.0 \
+            tensorflow-decision-forests==1.5.0 ydf==0.13.0
+tensorflowjs_converter --quantize_float16 '*' \
+  dist/models/student_v1_fp16_manual/saved_model \
+  dist/models/student_v1_fp16
+```
+
+También puedes usar `npx @tensorflow/tfjs-converter` (Node ≥18). Conserva `export_metadata.json` para registrar versión de TF usada y el umbral de confianza aplicado.
+
+### 6.5 - Estado Final (24 dic 2025)
+
+**✅ COMPLETADO:**
+- Threshold configurado: **0.62** (94.5% accuracy, 80.1% coverage)
+- Metadata generado con justificación y métricas de calibración
+- Documentación actualizada en EXPORT_TFJS_PWA.md §1.5
+- SavedModel validado (MAE=0.0072 vs PyTorch)
+
+**⏳ PENDIENTE:**
+- Conversión final SavedModel → TF.js (bloqueado por conflictos de dependencias)
+- Ver [CONVERSION_STATUS.md](../CONVERSION_STATUS.md) para opciones de solución
+
+**Archivos listos:**
+```
+dist/models/student_v1_fp16_manual/
+  ├── saved_model/              ← Listo para convertir
+  └── export_metadata.json      ← Threshold 0.62 documentado
+```
+
+---
+
 ## 📚 Archivos de Referencia
 
 ### Documentación
@@ -557,6 +672,8 @@ tail -f training_384_smartcrop.log | grep -E 'Epoch|loss|top1'
 - `SMART_RATE_LIMITING.md` - Sistema de rate limiting
 - `SUMMARY_SESSION_20251220.md` - Resumen completo de la sesión
 - `CACHE_FIX_20251219.md` - Fix de cache eviction
+- `CONVERSION_STATUS.md` - **[NUEVO]** Estado export TF.js + threshold 0.62
+- `aplantida-ml-training/EXPORT_TFJS_PWA.md` - **[ACTUALIZADO]** Decisión threshold §1.5
 
 ### Scripts útiles
 - `START_TRAINING_384.sh` - Iniciar training con todas las mejoras
@@ -565,6 +682,20 @@ tail -f training_384_smartcrop.log | grep -E 'Epoch|loss|top1'
 - `scripts/test_rate_limiting.py` - Test de rate limiting
 - `scripts/debug_saliency.py` - Debug de detección de saliency
 - `scripts/export_dataset.py` - Exportar desde MongoDB
+- `scripts/calibrate_model.py` - **[FASE 5]** Calcular ECE/MCE
+- `scripts/temperature_scaling.py` - **[FASE 5]** Optimizar temperatura
+- `scripts/find_confidence_threshold.py` - **[FASE 5]** Analizar thresholds
+- `scripts/quantize_model.py` - **[FASE 6]** Cuantizar a FP16/INT8
+- `scripts/export_to_tfjs.py` - **[FASE 6]** PyTorch → ONNX → SavedModel
+- `scripts/validate_tfjs_export.py` - **[FASE 6]** Validar PyTorch ↔ TF
+- `convert_model.js` - **[FASE 6]** SavedModel → TF.js (Node.js)
 
 ### Configuración
 - `config/teacher_global.yaml` - Config principal (384px + smart crop)
+- `config/student.yaml` - **[ACTUALIZADO]** Config student con threshold 0.62
+
+### Resultados y Metadata
+- `results/student_finetune_v1/temperature_metrics.json` - Calibración T=2.0
+- `results/student_finetune_v1/threshold_analysis_temp.json` - Análisis threshold
+- `results/student_finetune_v1/export_validation.json` - Validación PyTorch↔TF
+- `dist/models/student_v1_fp16_manual/export_metadata.json` - **[NUEVO]** Metadata completo v1.0

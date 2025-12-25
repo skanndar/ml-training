@@ -2,7 +2,7 @@
 
 **Objetivo:** Entrenar un modelo de plantas fine-tuneado con distillation para desplegar en TensorFlow.js (offline, PWA).
 
-**Status:** Fase 0 completada (17 dic 2025) | Fase 1 ejecutada con mejoras activas (20 dic 2025)
+**Status:** Fase 0 completada (17 dic 2025) | Fases 1-4 ejecutadas | Fase 5 (calibración + threshold) cerrada (24 dic 2025)
 
 ---
 
@@ -13,7 +13,9 @@
 - **Refactors posteriores:** El 20 de diciembre (`SUMMARY_SESSION_20251220.md`) se re-exportaron **741,533 imágenes** (365k iNat + 376k legacy), se creó `scripts/create_stratified_split.py` (train 93,761 / val 12,639 / test 11,726 con 100% de solapamiento), se validó el Smart Rate Limiting y se añadió Smart Crop por saliencia + resolución 384px (`IMPROVEMENTS_384_SMARTCROP.md`).
 - **Config actual:** `config/teacher_global.yaml` usa `vit_base_patch16_384`, batch size 4, cache 220GB y `smart_crop: true`. Ejecuta `./START_TRAINING_384.sh` para la nueva corrida sobre los JSONL estratificados.
 - **Pipeline regional listo:** `scripts/create_stratified_split.py --region EU_SW` + `config/teacher_regional.yaml` replican las mismas mejoras (384px + smart crop) y `./START_TRAINING_REGIONAL_384.sh` automatiza el entrenamiento del teacher B.
-- **Siguientes hitos:** Rerun del teacher global con las mejoras anteriores, cerrar el teacher regional y entrenar el **Teacher C (Europa Norte/East)** usando `scripts/create_stratified_split.py --region EU_NORTH,EU_EAST` + `./START_TRAINING_EU_CORE_384.sh` para cubrir el resto del continente.
+- **Calibración del student (Fase 5):** `scripts/temperature_scaling.py` con el checkpoint `checkpoints/student_finetune/best_model.pt` determinó una temperatura óptima **T=2.0** (ECE ➝ 0.040). El umbral recomendado para "no concluyente" es **0.66** (95.0% accuracy, 78.9% coverage) según `results/student_finetune_v1/threshold_analysis_temp.json`.
+- **Export preliminar (Fase 6):** Está disponible el checkpoint cuantizado FP16 (`results/student_finetune_v1/model_fp16.pt`), el ONNX (`dist/models/student_v1_fp16_manual/student.onnx`) y el SavedModel (`dist/models/student_v1_fp16_manual/saved_model`). Falta completar la conversión a TF.js porque `tensorflowjs_converter` requiere un entorno con TensorFlow 2.13.x + `tensorflow_decision_forests` 1.5.0. Ver `EXPORT_TFJS_PWA.md` para reproducir el paso en un venv aislado.
+- **Siguientes hitos:** Rerun del teacher global con las mejoras anteriores, cerrar el teacher regional y entrenar el **Teacher C (Europa Norte/East)** usando `scripts/create_stratified_split.py --region EU_NORTH,EU_EAST` + `./START_TRAINING_EU_CORE_384.sh` para cubrir el resto del continente. Una vez tengamos los tres teachers, repetir distillation/fine-tuning y volver a calibrar/exportar para TF.js.
 
 ---
 
